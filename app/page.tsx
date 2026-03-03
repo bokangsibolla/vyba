@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getStoredToken, redirectToSpotifyAuth } from '@/lib/spotify/auth';
 import Logo from '@/components/Logo';
@@ -8,12 +8,11 @@ import styles from './page.module.css';
 
 export default function Home() {
   const router = useRouter();
+  const [hasToken, setHasToken] = useState(false);
 
   useEffect(() => {
-    if (getStoredToken()) {
-      router.replace('/orbit');
-    }
-  }, [router]);
+    setHasToken(!!getStoredToken());
+  }, []);
 
   return (
     <main className={styles.main}>
@@ -24,9 +23,15 @@ export default function Home() {
           See the vibes you gravitate toward. Generate playlists from any orbit.
           No waiting a week.
         </p>
-        <button className={styles.connect} onClick={redirectToSpotifyAuth}>
-          Connect Spotify
-        </button>
+        {hasToken ? (
+          <button className={styles.connect} onClick={() => router.push('/orbit')}>
+            Open your orbits
+          </button>
+        ) : (
+          <button className={styles.connect} onClick={redirectToSpotifyAuth}>
+            Connect Spotify
+          </button>
+        )}
         <p className={styles.note}>
           We only read your listening history. Nothing is posted or shared.
         </p>

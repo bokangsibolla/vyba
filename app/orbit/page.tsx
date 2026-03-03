@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { getStoredToken, logout } from '@/lib/spotify/auth';
 import { getAllTopTracksWithFeatures } from '@/lib/spotify/api';
@@ -16,8 +16,13 @@ export default function OrbitPage() {
   const [vibes, setVibes] = useState<VibeCluster[] | null>(null);
   const [selectedVibe, setSelectedVibe] = useState<VibeCluster | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const fetched = useRef(false);
 
   useEffect(() => {
+    if (fetched.current) return;
+    fetched.current = true;
+
     const token = getStoredToken();
     if (!token) {
       router.replace('/');
@@ -26,15 +31,67 @@ export default function OrbitPage() {
 
     getAllTopTracksWithFeatures(token)
       .then((tracks) => {
+        if (tracks.length === 0) {
+          setError('No listening data found. Listen to more music on Spotify and try again.');
+          setIsLoading(false);
+          return;
+        }
         const k = Math.min(6, Math.max(3, Math.floor(tracks.length / 15)));
         const clusters = buildVibeMap(tracks, k);
         setVibes(clusters);
         setIsLoading(false);
       })
-      .catch(() => {
-        router.replace('/');
+      .catch((e) => {
+        setError(e.message || 'Failed to load your music data');
+        setIsLoading(false);
       });
   }, [router]);
+
+  if (error) {
+    return (
+      <main className={styles.main}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '80dvh', gap: 16, textAlign: 'center' }}>
+          <Logo size={28} />
+          <p style={{ fontSize: 16, fontWeight: 600, color: '#1A1A1A' }}>Something went wrong</p>
+          <p style={{ fontSize: 14, color: '#8A8A8A', maxWidth: 300 }}>{error}</p>
+          <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
+            <button
+              onClick={() => { fetched.current = false; setError(null); setIsLoading(true); }}
+              style={{
+                padding: '12px 24px',
+                background: '#1A1A1A',
+                color: '#fff',
+                border: 'none',
+                borderRadius: 9999,
+                fontFamily: "'Space Grotesk', sans-serif",
+                fontSize: 14,
+                fontWeight: 500,
+                cursor: 'pointer',
+              }}
+            >
+              Retry
+            </button>
+            <button
+              onClick={() => { logout(); router.replace('/'); }}
+              style={{
+                padding: '12px 24px',
+                background: 'none',
+                color: '#8A8A8A',
+                border: '1px solid #EBEBEB',
+                borderRadius: 9999,
+                fontFamily: "'Space Grotesk', sans-serif",
+                fontSize: 14,
+                fontWeight: 500,
+                cursor: 'pointer',
+              }}
+            >
+              Log out
+            </button>
+          </div>
+        </div>
+      </main>
+    );
+  }
 
   if (isLoading || !vibes) return <LoadingState />;
 
