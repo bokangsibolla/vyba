@@ -7,6 +7,7 @@ import { getAllTopTracksWithFeatures } from '@/lib/spotify/api';
 import { buildVibeMap, VibeCluster } from '@/lib/clustering';
 import OrbitMap from '@/components/OrbitMap';
 import LoadingState from '@/components/LoadingState';
+import GeneratePlaylist from '@/components/GeneratePlaylist';
 import Logo from '@/components/Logo';
 import styles from './page.module.css';
 
@@ -72,6 +73,7 @@ export default function OrbitPage() {
             </a>
           ))}
         </div>
+        <GeneratePlaylist vibe={selectedVibe} />
       </main>
     );
   }
