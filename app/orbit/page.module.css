@@ -1,0 +1,105 @@
+.main {
+  min-height: 100dvh;
+  padding: 24px;
+  padding-top: env(safe-area-inset-top, 24px);
+}
+
+.header {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.subtitle {
+  font-size: 14px;
+  color: #8A8A8A;
+  font-weight: 400;
+}
+
+.detailHeader {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.back {
+  background: none;
+  border: 1px solid #EBEBEB;
+  border-radius: 9999px;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 18px;
+  color: #1A1A1A;
+  font-family: 'Space Grotesk', sans-serif;
+  flex-shrink: 0;
+}
+
+.back:hover {
+  background: #F8F8F8;
+}
+
+.vibeTitle {
+  font-size: 24px;
+  font-weight: 700;
+  color: #1A1A1A;
+  letter-spacing: -0.02em;
+}
+
+.vibeDesc {
+  font-size: 14px;
+  color: #8A8A8A;
+  margin-top: 2px;
+}
+
+.trackList {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.trackRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  text-decoration: none;
+  color: inherit;
+  border-bottom: 1px solid #F3F3F3;
+  transition: opacity 0.15s ease;
+}
+
+.trackRow:hover {
+  opacity: 0.7;
+}
+
+.trackImg {
+  border-radius: 6px;
+  object-fit: cover;
+}
+
+.trackInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.trackName {
+  font-size: 15px;
+  font-weight: 500;
+  color: #1A1A1A;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trackArtist {
+  font-size: 13px;
+  color: #8A8A8A;
+}

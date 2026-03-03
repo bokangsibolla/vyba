@@ -1,0 +1,11 @@
+.map {
+  position: relative;
+  width: 100%;
+  height: calc(100dvh - 140px);
+  overflow: hidden;
+}
+
+.cloudWrapper {
+  position: absolute;
+  transform: translate(-50%, -50%);
+}
