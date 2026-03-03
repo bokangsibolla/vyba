@@ -13,12 +13,11 @@ export default function Home() {
     <main className={styles.main}>
       <div className={styles.content}>
         <Logo size={28} />
-        <span className={styles.badge}>Your Daily Dig</span>
         <h1 className={styles.tagline}>
-          Good music<br />finds you here.
+          New music every<br />morning at 6am.
         </h1>
         <p className={styles.sub}>
-          60 songs. Six sections. Every morning at 6am.
+          Connect Spotify. We do the digging.
         </p>
 
         {hasToken ? (

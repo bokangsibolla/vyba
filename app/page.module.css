@@ -15,18 +15,6 @@
   gap: 16px;
 }
 
-.badge {
-  display: inline-block;
-  font-family: 'Space Mono', monospace;
-  font-size: 10px;
-  font-weight: 700;
-  color: #FF4D00;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  border: 2px solid #FF4D00;
-  padding: 4px 14px;
-}
-
 .tagline {
   font-family: 'Instrument Serif', serif;
   font-size: 44px;
