@@ -310,50 +310,46 @@ export async function runDiscoveryEngine(
     orbits.push(makeOrbit('roots', tracks, discovered, confidence));
   }
 
-  // Orbit 2: Your Edges — Tracks matching frontier genres
-  if (frontierResult && frontierResult.evolving) {
-    const edgeGenres = frontierResult.frontierGenres.slice(0, 5);
+  // Orbit 2: Your Edges — Top tracks from frontier artists (new interests)
+  if (frontierResult && frontierResult.shortTermOnly.length > 0) {
     try {
-      const edgeTracks = await discoverByGenres(token, edgeGenres, userTrackIds, 25);
-      const edgeArtists: DiscoveredArtist[] = edgeTracks.map((t) => ({
-        spotifyId: t.artists[0]?.id ?? '',
-        name: t.artists[0]?.name ?? 'Unknown',
-        source: 'frontier' as const,
-        score: emergingGenres.size > 0 ? FRONTIER_BOOST : 1,
-      }));
-      const confidence = Math.min(1, edgeTracks.length / 15);
-      orbits.push(makeOrbit('edges', edgeTracks, edgeArtists, confidence));
+      const edgeTracks: SpotifyTrack[] = [];
+      const edgeArtists: DiscoveredArtist[] = [];
+      const seen = new Set<string>();
+
+      // Get top tracks from each frontier artist (artists user recently discovered)
+      const frontierArtists = frontierResult.shortTermOnly.slice(0, 8);
+      for (const artist of frontierArtists) {
+        const tracks = await searchTracksByArtist(token, artist.name, 4);
+        for (const track of tracks) {
+          if (!seen.has(track.id) && !userTrackIds.has(track.id)) {
+            seen.add(track.id);
+            edgeTracks.push(track);
+          }
+        }
+        edgeArtists.push({
+          spotifyId: artist.id,
+          name: artist.name,
+          source: 'frontier' as const,
+          score: FRONTIER_BOOST,
+        });
+      }
+
+      if (edgeTracks.length > 0) {
+        const confidence = Math.min(1, edgeTracks.length / 15);
+        orbits.push(makeOrbit('edges', edgeTracks, edgeArtists, confidence));
+      }
     } catch {
       // Edges fail gracefully
     }
-  } else if (frontierResult) {
-    // Non-evolving: use medium-term genre underrepresentation
-    const mediumGenres = new Set(
-      allArtists.mediumTerm.flatMap((a) => a.genres),
-    );
-    const underrepresented = Array.from(mediumGenres)
-      .filter((g) => !frontierResult.coreGenres.includes(g))
-      .slice(0, 5);
-    if (underrepresented.length > 0) {
-      try {
-        const edgeTracks = await discoverByGenres(token, underrepresented, userTrackIds, 20);
-        const edgeArtists: DiscoveredArtist[] = edgeTracks.map((t) => ({
-          spotifyId: t.artists[0]?.id ?? '',
-          name: t.artists[0]?.name ?? 'Unknown',
-          source: 'frontier' as const,
-          score: 1,
-        }));
-        orbits.push(makeOrbit('edges', edgeTracks, edgeArtists, 0.5));
-      } catch {
-        // Edges fail gracefully
-      }
-    }
   }
 
-  // Orbit 3: Your Crowd — Top co-occurring tracks from playlist mining
+  // Orbit 3: Your Crowd — Co-occurring tracks from playlist mining (2+ playlists = signal, not noise)
   if (playlistResult && playlistResult.length > 0) {
-    const { tracks, discovered } = await resolveCoOccurrencesToTracks(playlistResult, 25);
-    const confidence = Math.min(1, playlistResult.length / 20);
+    const strongMatches = playlistResult.filter((co) => co.count >= 2);
+    const toUse = strongMatches.length >= 5 ? strongMatches : playlistResult;
+    const { tracks, discovered } = await resolveCoOccurrencesToTracks(toUse, 25);
+    const confidence = Math.min(1, strongMatches.length / 15);
     orbits.push(makeOrbit('crowd', tracks, discovered, confidence));
   }
 

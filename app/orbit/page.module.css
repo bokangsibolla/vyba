@@ -2,23 +2,21 @@
   min-height: 100dvh;
   padding: 24px;
   padding-top: env(safe-area-inset-top, 24px);
+  padding-bottom: 80px;
 }
 
 .header {
   display: flex;
-  align-items: baseline;
-  gap: 12px;
-  margin-bottom: 8px;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 24px;
 }
 
 .subtitle {
-  font-size: 14px;
+  font-size: 13px;
   color: #8A8A8A;
   font-weight: 400;
-}
-
-.headerRight {
-  margin-left: auto;
+  margin-top: 4px;
 }
 
 .logoutBtn {
@@ -36,9 +34,59 @@
   color: #1A1A1A;
 }
 
+/* Playlist cards */
+.cards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Save all section */
+.saveSection {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 16px 24px;
+  padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  background: linear-gradient(transparent, #FFFFFF 30%);
+  text-align: center;
+}
+
+.saveAllBtn {
+  width: 100%;
+  max-width: 400px;
+  padding: 16px 24px;
+  background: #1A1A1A;
+  color: #FFFFFF;
+  border: none;
+  border-radius: 9999px;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.saveAllBtn:hover:not(:disabled) {
+  opacity: 0.85;
+}
+
+.saveAllBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.savedMessage {
+  font-size: 15px;
+  font-weight: 500;
+  color: #1DB954;
+}
+
+/* Footer */
 .footer {
   position: fixed;
-  bottom: 24px;
+  bottom: 80px;
   left: 0;
   right: 0;
   text-align: center;
