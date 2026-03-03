@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect } from 'react';
+import { Suspense, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { exchangeCodeForToken, storeToken } from '@/lib/spotify/auth';
 
-export default function Callback() {
+function CallbackHandler() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -31,5 +31,19 @@ export default function Callback() {
         Connecting your Spotify...
       </p>
     </div>
+  );
+}
+
+export default function Callback() {
+  return (
+    <Suspense fallback={
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100dvh' }}>
+        <p style={{ fontFamily: "'Space Grotesk', sans-serif", color: '#8A8A8A' }}>
+          Connecting your Spotify...
+        </p>
+      </div>
+    }>
+      <CallbackHandler />
+    </Suspense>
   );
 }
