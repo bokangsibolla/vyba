@@ -37,7 +37,6 @@ export async function getTopArtists(
 export async function getAllTopTracksWithGenres(
   token: string
 ): Promise<TrackWithGenres[]> {
-  // Fetch tracks and artists in parallel
   const [shortTracks, mediumTracks, longTracks, shortArtists, mediumArtists, longArtists] =
     await Promise.all([
       getTopTracks(token, 'short_term'),
@@ -73,26 +72,47 @@ export async function getAllTopTracksWithGenres(
       const g = artistGenres.get(artist.id);
       if (g) genres.push(...g);
     }
-    // Deduplicate genres
     return { ...track, genres: Array.from(new Set(genres)) };
   });
 }
 
-export async function getRecommendations(
+// Discovery via search — find tracks by genre keywords, excluding tracks user already has
+export async function discoverByGenres(
   token: string,
-  seedTrackIds: string[],
+  genres: string[],
+  excludeTrackIds: Set<string>,
   limit = 30
 ): Promise<SpotifyTrack[]> {
-  const params = new URLSearchParams({
-    seed_tracks: seedTrackIds.slice(0, 5).join(','),
-    limit: String(limit),
-  });
+  const results: SpotifyTrack[] = [];
+  const seen = new Set<string>();
 
-  const data = await spotifyFetch<{ tracks: SpotifyTrack[] }>(
-    token,
-    `/recommendations?${params}`
-  );
-  return data.tracks;
+  // Search with multiple genre terms to get variety
+  const searchTerms = genres.slice(0, 5);
+
+  for (const genre of searchTerms) {
+    if (results.length >= limit) break;
+
+    const q = encodeURIComponent(`genre:"${genre}"`);
+    const data = await spotifyFetch<{ tracks: { items: SpotifyTrack[] } }>(
+      token,
+      `/search?q=${q}&type=track&limit=10`
+    );
+
+    for (const track of data.tracks.items) {
+      if (!seen.has(track.id) && !excludeTrackIds.has(track.id)) {
+        seen.add(track.id);
+        results.push(track);
+      }
+    }
+  }
+
+  // Shuffle to mix genres
+  for (let i = results.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [results[i], results[j]] = [results[j], results[i]];
+  }
+
+  return results.slice(0, limit);
 }
 
 export async function createPlaylist(

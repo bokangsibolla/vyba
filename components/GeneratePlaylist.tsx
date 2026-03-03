@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { getStoredToken } from '@/lib/spotify/auth';
-import { getRecommendations, createPlaylist } from '@/lib/spotify/api';
+import { discoverByGenres, createPlaylist } from '@/lib/spotify/api';
 import { VibeCluster } from '@/lib/clustering';
 import { SpotifyTrack } from '@/lib/spotify/types';
 import styles from './GeneratePlaylist.module.css';
@@ -16,18 +16,24 @@ export default function GeneratePlaylist({ vibe }: Props) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [savedUrl, setSavedUrl] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const generate = async () => {
     const token = getStoredToken();
     if (!token) return;
 
     setIsGenerating(true);
+    setError(null);
     try {
-      const seeds = vibe.tracks.slice(0, 5).map((t) => t.id);
-      const tracks = await getRecommendations(token, seeds, 30);
-      setDiscoveries(tracks);
+      const excludeIds = new Set(vibe.tracks.map((t) => t.id));
+      const tracks = await discoverByGenres(token, vibe.topGenres, excludeIds, 30);
+      if (tracks.length === 0) {
+        setError('No new tracks found for this vibe. Try another orbit.');
+      } else {
+        setDiscoveries(tracks);
+      }
     } catch {
-      // Silent fail for now
+      setError('Failed to search for new tracks.');
     } finally {
       setIsGenerating(false);
     }
@@ -47,7 +53,7 @@ export default function GeneratePlaylist({ vibe }: Props) {
       );
       setSavedUrl(url);
     } catch {
-      // Silent fail for now
+      setError('Failed to save playlist.');
     } finally {
       setIsSaving(false);
     }
@@ -56,9 +62,12 @@ export default function GeneratePlaylist({ vibe }: Props) {
   return (
     <div className={styles.container}>
       {!discoveries ? (
-        <button className={styles.generateBtn} onClick={generate} disabled={isGenerating}>
-          {isGenerating ? 'Finding new sounds...' : `Discover more ${vibe.label}`}
-        </button>
+        <>
+          <button className={styles.generateBtn} onClick={generate} disabled={isGenerating}>
+            {isGenerating ? 'Finding new sounds...' : `Discover more ${vibe.label}`}
+          </button>
+          {error && <p className={styles.error}>{error}</p>}
+        </>
       ) : (
         <>
           <div className={styles.sectionHeader}>

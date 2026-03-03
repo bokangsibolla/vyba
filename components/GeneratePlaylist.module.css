@@ -138,3 +138,10 @@
   border-color: #1A1A1A;
   color: #1A1A1A;
 }
+
+.error {
+  margin-top: 12px;
+  font-size: 13px;
+  color: #8A8A8A;
+  text-align: center;
+}
