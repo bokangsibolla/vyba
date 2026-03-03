@@ -2,8 +2,8 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Vyba — Discover Your Sound',
-  description: 'Your music taste, visualized. Tap a vibe, get a playlist.',
+  title: 'VYBA — Your Daily Dig',
+  description: 'Fresh music in your inbox. Every morning. 60+ songs curated by your personal DJ.',
   manifest: '/manifest.json',
 };
 
@@ -11,7 +11,7 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
-  themeColor: '#FFFFFF',
+  themeColor: '#FFFDF5',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

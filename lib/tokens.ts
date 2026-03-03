@@ -1,25 +1,19 @@
+// === 90s Hip-Hop Zine Design Tokens ===
+
 export const colors = {
-  bg: '#FFFFFF',
-  surface: '#F8F8F8',
-  text: '#1A1A1A',
-  textMuted: '#8A8A8A',
-  accent: '#1DB954',
-  border: '#EBEBEB',
+  bg: '#FFFDF5',
+  surface: '#FFF8EA',
+  text: '#111111',
+  textMuted: '#6B6B6B',
+  accent: '#FF4D00',
+  border: '#E5DDD0',
+  success: '#2D8B4E',
 } as const;
 
-export const vibeColors = [
-  { name: 'coral', from: '#FFB5A7', to: '#FEC5BB' },
-  { name: 'lavender', from: '#C8B6FF', to: '#E2D1F9' },
-  { name: 'mint', from: '#A8E6CF', to: '#C1F0D8' },
-  { name: 'sky', from: '#A0C4FF', to: '#BDD5FF' },
-  { name: 'peach', from: '#FFD6A5', to: '#FFE5C4' },
-  { name: 'sage', from: '#B5E48C', to: '#D4F0B0' },
-  { name: 'rose', from: '#FFAFCC', to: '#FFC8DD' },
-] as const;
-
 export const fonts = {
-  family: "'Space Grotesk', sans-serif",
-  weight: { regular: 400, medium: 500, bold: 700 },
+  heading: "'Space Mono', monospace",
+  body: "'Inter', sans-serif",
+  weight: { regular: 400, medium: 500, semibold: 600, bold: 700 },
 } as const;
 
 export const spacing = {
@@ -27,19 +21,25 @@ export const spacing = {
 } as const;
 
 export const radius = {
-  sm: 8, md: 12, lg: 16, pill: 9999,
+  sm: 4, md: 8, lg: 12, pill: 9999,
 } as const;
 
-export const orbitColors = {
-  roots: { name: 'lavender', from: '#C8B6FF', to: '#E2D1F9' },
-  edges: { name: 'mint', from: '#A8E6CF', to: '#C1F0D8' },
-  crowd: { name: 'peach', from: '#FFD6A5', to: '#FFE5C4' },
-  blindspot: { name: 'sky', from: '#A0C4FF', to: '#BDD5FF' },
+export const sectionColors = {
+  roots:     { bg: '#F5EDE4', accent: '#8B6914', label: 'ROOTS' },
+  edges:     { bg: '#E8F0E4', accent: '#3D6B2E', label: 'EDGES' },
+  crowd:     { bg: '#FCE8D8', accent: '#B5541A', label: 'CROWD' },
+  blindspot: { bg: '#E4ECF5', accent: '#2E4A6B', label: 'BLINDSPOT' },
+  deepwork:  { bg: '#EDEBE8', accent: '#555555', label: 'DEEP WORK' },
+  wildcard:  { bg: '#F5E4EE', accent: '#8B1454', label: 'WILDCARD' },
 } as const;
 
-export const orbitMeta = {
-  roots: { label: 'Your Roots', description: 'Artists who shaped the music you love' },
-  edges: { label: 'Your Edges', description: 'Where your taste is heading next' },
-  crowd: { label: 'Your Crowd', description: "What similar listeners can't stop playing" },
-  blindspot: { label: 'Your Blindspot', description: "Important artists you've never explored" },
-} as const;
+export type SectionId = keyof typeof sectionColors;
+
+export const sectionMeta: Record<SectionId, { label: string; tagline: string }> = {
+  roots:     { label: 'ROOTS',     tagline: 'Where your sound was born' },
+  edges:     { label: 'EDGES',     tagline: 'Where your taste is heading' },
+  crowd:     { label: 'CROWD',     tagline: 'What your people are playing' },
+  blindspot: { label: 'BLINDSPOT', tagline: "Important music you've never touched" },
+  deepwork:  { label: 'DEEP WORK', tagline: 'Disappear for 3 hours' },
+  wildcard:  { label: 'WILDCARD',  tagline: 'Completely outside your bubble' },
+};
