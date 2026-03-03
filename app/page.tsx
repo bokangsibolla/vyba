@@ -55,6 +55,11 @@ export default function Home() {
             <button className={styles.submitBtn} onClick={redirectToSpotifyAuth}>
               Connect Spotify
             </button>
+            <button className={styles.connectBtn} onClick={() => {
+              import('@/lib/deezer/auth').then(m => m.redirectToDeezerAuth());
+            }}>
+              Connect Deezer instead
+            </button>
           </>
         ) : hasToken ? (
           <button className={styles.submitBtn} onClick={() => router.push('/orbit')}>
