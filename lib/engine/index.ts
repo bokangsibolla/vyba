@@ -362,6 +362,70 @@ export async function runDiscoveryEngine(
     orbits.push(makeOrbit('blindspot', tracks, discovered, confidence));
   }
 
+  // Orbit 5: Deep Work — Instrumental/ambient versions of genres user likes
+  try {
+    const userGenres = [
+      ...allArtists.shortTerm.flatMap((a) => a.genres),
+      ...allArtists.mediumTerm.flatMap((a) => a.genres),
+    ];
+    const uniqueGenres = Array.from(new Set(userGenres));
+
+    const ambientTerms = ['instrumental', 'ambient', 'lo-fi', 'chillhop', 'study'];
+    const deepWorkQueries = uniqueGenres
+      .slice(0, 3)
+      .map(g => `${g} instrumental`)
+      .concat(ambientTerms.slice(0, 2));
+
+    const dwTracks: SpotifyTrack[] = [];
+    const seen = new Set<string>();
+
+    for (const query of deepWorkQueries) {
+      if (dwTracks.length >= 15) break;
+      const results = await discoverByGenres(token, [query], userTrackIds, 5);
+      for (const t of results) {
+        if (!seen.has(t.id)) {
+          seen.add(t.id);
+          dwTracks.push(t);
+        }
+      }
+    }
+
+    if (dwTracks.length > 0) {
+      orbits.push(makeOrbit('deepwork', dwTracks, [], 0.5));
+    }
+  } catch {
+    // Deep work fails gracefully
+  }
+
+  // Orbit 6: Wildcard — Random genre the user has never explored
+  try {
+    const userGenreSet = new Set([
+      ...allArtists.shortTerm.flatMap((a) => a.genres),
+      ...allArtists.mediumTerm.flatMap((a) => a.genres),
+      ...allArtists.longTerm.flatMap((a) => a.genres),
+    ]);
+
+    const wildcardGenres = [
+      'afrobeats', 'bossa nova', 'k-pop', 'amapiano', 'reggaeton',
+      'shoegaze', 'city pop', 'afrofuturism', 'dub', 'highlife',
+      'tropicalia', 'cumbia', 'grime', 'baile funk', 'j-pop',
+      'dancehall', 'bolero', 'ethio-jazz', 'desert blues', 'kuduro',
+    ];
+
+    const unexplored = wildcardGenres.filter(g => !userGenreSet.has(g));
+    const pick = unexplored[Math.floor(Math.random() * unexplored.length)] ?? 'world music';
+
+    const wcTracks = await discoverByGenres(token, [pick], userTrackIds, 12);
+
+    if (wcTracks.length > 0) {
+      const wildcardOrbit = makeOrbit('wildcard', wcTracks, [], 0.4);
+      wildcardOrbit.description = `Today's left turn: ${pick}`;
+      orbits.push(wildcardOrbit);
+    }
+  } catch {
+    // Wildcard fails gracefully
+  }
+
   // Graceful degradation: if no orbits, create a single "Discover" via genre search
   if (orbits.length === 0) {
     const allGenres = [

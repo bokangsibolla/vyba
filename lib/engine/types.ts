@@ -51,7 +51,7 @@ export interface TasteFrontier {
 
 // --- Discovery Orbits ---
 
-export type OrbitId = 'roots' | 'edges' | 'crowd' | 'blindspot';
+export type OrbitId = 'roots' | 'edges' | 'crowd' | 'blindspot' | 'deepwork' | 'wildcard';
 
 export interface DiscoveryOrbit {
   id: OrbitId;
