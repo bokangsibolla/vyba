@@ -3,6 +3,7 @@ const REDIRECT_URI = process.env.NEXT_PUBLIC_REDIRECT_URI!;
 const SCOPES = [
   'user-top-read',
   'user-read-recently-played',
+  'user-read-email',
   'playlist-modify-public',
   'playlist-modify-private',
 ].join(' ');
