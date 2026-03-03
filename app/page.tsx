@@ -18,11 +18,20 @@ export default function Home() {
     if (!email.trim()) return;
     setLoading(true);
 
-    // TODO: Task 4 will wire this to Supabase
-    // For now, store email locally and proceed
-    localStorage.setItem('vyba_email', email);
-    setSubmitted(true);
-    setLoading(false);
+    try {
+      const { supabase } = await import('@/lib/supabase/client');
+      const { error } = await supabase
+        .from('profiles')
+        .upsert({ email: email.trim().toLowerCase() }, { onConflict: 'email' });
+      if (error) throw error;
+      localStorage.setItem('vyba_email', email);
+      setSubmitted(true);
+    } catch {
+      localStorage.setItem('vyba_email', email);
+      setSubmitted(true);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
