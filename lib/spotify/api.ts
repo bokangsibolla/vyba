@@ -143,3 +143,66 @@ export async function createPlaylist(
 
   return playlist.external_urls.spotify;
 }
+
+export async function searchPlaylistsForTrack(
+  token: string,
+  trackName: string,
+  artistName: string,
+  limit = 5
+): Promise<{ id: string; name: string; trackCount: number }[]> {
+  const q = encodeURIComponent(`${trackName} ${artistName}`);
+  const data = await spotifyFetch<{
+    playlists: {
+      items: { id: string; name: string; tracks: { total: number } }[];
+    };
+  }>(token, `/search?q=${q}&type=playlist&limit=${limit}`);
+
+  return data.playlists.items
+    .filter((p) => p.tracks.total >= 10 && p.tracks.total <= 500)
+    .map((p) => ({ id: p.id, name: p.name, trackCount: p.tracks.total }));
+}
+
+export async function getPlaylistTracks(
+  token: string,
+  playlistId: string,
+  limit = 100
+): Promise<SpotifyTrack[]> {
+  const data = await spotifyFetch<{
+    items: { track: SpotifyTrack | null }[];
+  }>(
+    token,
+    `/playlists/${playlistId}/tracks?limit=${limit}&fields=items(track(id,name,artists(id,name),album(id,name,images),uri,preview_url,external_urls))`
+  );
+
+  return data.items
+    .map((item) => item.track)
+    .filter((track): track is SpotifyTrack => track !== null);
+}
+
+export async function searchTracksByArtist(
+  token: string,
+  artistName: string,
+  limit = 5
+): Promise<SpotifyTrack[]> {
+  const q = encodeURIComponent(`artist:"${artistName}"`);
+  const data = await spotifyFetch<{ tracks: { items: SpotifyTrack[] } }>(
+    token,
+    `/search?q=${q}&type=track&limit=${limit}`
+  );
+  return data.tracks.items;
+}
+
+export async function getAllTimeRangeArtists(
+  token: string
+): Promise<{
+  shortTerm: SpotifyArtist[];
+  mediumTerm: SpotifyArtist[];
+  longTerm: SpotifyArtist[];
+}> {
+  const [shortTerm, mediumTerm, longTerm] = await Promise.all([
+    getTopArtists(token, 'short_term'),
+    getTopArtists(token, 'medium_term'),
+    getTopArtists(token, 'long_term'),
+  ]);
+  return { shortTerm, mediumTerm, longTerm };
+}

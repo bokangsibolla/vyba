@@ -29,3 +29,17 @@ export const spacing = {
 export const radius = {
   sm: 8, md: 12, lg: 16, pill: 9999,
 } as const;
+
+export const orbitColors = {
+  roots: { name: 'lavender', from: '#C8B6FF', to: '#E2D1F9' },
+  edges: { name: 'mint', from: '#A8E6CF', to: '#C1F0D8' },
+  crowd: { name: 'peach', from: '#FFD6A5', to: '#FFE5C4' },
+  blindspot: { name: 'sky', from: '#A0C4FF', to: '#BDD5FF' },
+} as const;
+
+export const orbitMeta = {
+  roots: { label: 'Your Roots', description: 'Artists who shaped the music you love' },
+  edges: { label: 'Your Edges', description: 'Where your taste is heading next' },
+  crowd: { label: 'Your Crowd', description: "What similar listeners can't stop playing" },
+  blindspot: { label: 'Your Blindspot', description: "Important artists you've never explored" },
+} as const;

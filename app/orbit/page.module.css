@@ -36,93 +36,6 @@
   color: #1A1A1A;
 }
 
-.detailHeader {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  margin-bottom: 24px;
-}
-
-.back {
-  background: none;
-  border: 1px solid #EBEBEB;
-  border-radius: 9999px;
-  width: 40px;
-  height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  font-size: 18px;
-  color: #1A1A1A;
-  font-family: 'Space Grotesk', sans-serif;
-  flex-shrink: 0;
-}
-
-.back:hover {
-  background: #F8F8F8;
-}
-
-.vibeTitle {
-  font-size: 24px;
-  font-weight: 700;
-  color: #1A1A1A;
-  letter-spacing: -0.02em;
-}
-
-.vibeDesc {
-  font-size: 14px;
-  color: #8A8A8A;
-  margin-top: 2px;
-}
-
-.trackList {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.trackRow {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 0;
-  text-decoration: none;
-  color: inherit;
-  border-bottom: 1px solid #F3F3F3;
-  transition: opacity 0.15s ease;
-}
-
-.trackRow:hover {
-  opacity: 0.7;
-}
-
-.trackImg {
-  border-radius: 6px;
-  object-fit: cover;
-}
-
-.trackInfo {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.trackName {
-  font-size: 15px;
-  font-weight: 500;
-  color: #1A1A1A;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.trackArtist {
-  font-size: 13px;
-  color: #8A8A8A;
-}
-
 .footer {
   position: fixed;
   bottom: 24px;
@@ -136,4 +49,68 @@
   font-size: 12px;
   color: #BEBEBE;
   letter-spacing: 0.02em;
+}
+
+/* Error state */
+.errorContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 80dvh;
+  gap: 16px;
+  text-align: center;
+}
+
+.errorTitle {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1A1A1A;
+}
+
+.errorMessage {
+  font-size: 14px;
+  color: #8A8A8A;
+  max-width: 300px;
+}
+
+.errorActions {
+  display: flex;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.retryBtn {
+  padding: 12px 24px;
+  background: #1A1A1A;
+  color: #fff;
+  border: none;
+  border-radius: 9999px;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.retryBtn:hover {
+  opacity: 0.85;
+}
+
+.logoutBtnAlt {
+  padding: 12px 24px;
+  background: none;
+  color: #8A8A8A;
+  border: 1px solid #EBEBEB;
+  border-radius: 9999px;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.logoutBtnAlt:hover {
+  border-color: #1A1A1A;
+  color: #1A1A1A;
 }
