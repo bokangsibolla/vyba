@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { getStoredToken } from '@/lib/spotify/auth';
+import { getStoredToken, logout } from '@/lib/spotify/auth';
 import { getAllTopTracksWithFeatures } from '@/lib/spotify/api';
 import { buildVibeMap, VibeCluster } from '@/lib/clustering';
 import OrbitMap from '@/components/OrbitMap';
@@ -83,8 +83,14 @@ export default function OrbitPage() {
       <header className={styles.header}>
         <Logo size={28} />
         <p className={styles.subtitle}>your orbit map</p>
+        <div className={styles.headerRight}>
+          <button className={styles.logoutBtn} onClick={() => { logout(); router.replace('/'); }}>Log out</button>
+        </div>
       </header>
       <OrbitMap vibes={vibes} onSelectVibe={setSelectedVibe} />
+      <footer className={styles.footer}>
+        <p className={styles.footerText}>vyba.vercel.app</p>
+      </footer>
     </main>
   );
 }

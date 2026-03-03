@@ -26,7 +26,7 @@ export default function Callback() {
   }, [searchParams, router]);
 
   return (
-    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100dvh' }}>
       <p style={{ fontFamily: "'Space Grotesk', sans-serif", color: '#8A8A8A' }}>
         Connecting your Spotify...
       </p>
