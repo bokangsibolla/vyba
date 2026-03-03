@@ -27,14 +27,39 @@ function CallbackHandler() {
       return;
     }
 
-    exchangeCodeForToken(code)
-      .then((token) => {
+    async function handleCallback(authCode: string) {
+      try {
+        const token = await exchangeCodeForToken(authCode);
         storeToken(token);
+
+        // Store in Supabase for daily email job
+        const email = localStorage.getItem('vyba_email');
+        if (email) {
+          try {
+            const { saveSpotifyConnection } = await import('@/lib/supabase/connections');
+            const me = await fetch('https://api.spotify.com/v1/me', {
+              headers: { Authorization: `Bearer ${token.access_token}` },
+            }).then(r => r.json());
+            await saveSpotifyConnection(
+              email,
+              token.access_token,
+              token.refresh_token,
+              token.expires_in,
+              me.id,
+            );
+          } catch {
+            // Non-blocking
+          }
+        }
+
         router.replace('/orbit');
-      })
-      .catch((e) => {
-        setError(e.message || 'Token exchange failed');
-      });
+      } catch (e: unknown) {
+        const message = e instanceof Error ? e.message : 'Token exchange failed';
+        setError(message);
+      }
+    }
+
+    handleCallback(code);
   }, [searchParams, router]);
 
   if (error) {
