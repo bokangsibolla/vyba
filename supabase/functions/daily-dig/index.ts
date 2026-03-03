@@ -51,7 +51,7 @@ Deno.serve(async () => {
           body: JSON.stringify({
             from: 'VYBA <dj@vyba.app>',
             to: profile.email,
-            subject: `VYBA #${String(issueNumber).padStart(3, '0')} — Your Daily Dig`,
+            subject: `VYBA #${String(issueNumber).padStart(3, '0')} · Your Daily Dig`,
             html: buildPlaceholderEmail(issueNumber, profile.display_name ?? 'friend'),
           }),
         });
@@ -102,7 +102,7 @@ function buildPlaceholderEmail(issueNumber: number, name: string): string {
       </p>
       <hr style="border: 1px solid #111; margin: 16px 0;" />
       <p style="font-size: 15px; color: #111; line-height: 1.6;">
-        Yo ${name}. Your daily dig is ready — head to <a href="https://vyba.vercel.app/today" style="color: #FF4D00;">vyba.vercel.app/today</a> to listen.
+        Yo ${name}. Your daily dig is ready. Head to <a href="https://vyba.vercel.app/today" style="color: #FF4D00;">vyba.vercel.app/today</a> to listen.
       </p>
       <hr style="border: 1px solid #E5DDD0; margin: 24px 0;" />
       <p style="font-family: 'Space Mono', monospace; font-size: 11px; color: #B5AFA5; text-align: center;">

@@ -65,7 +65,7 @@ export default function OrbitPage() {
       try {
         const url = await createPlaylist(
           token,
-          `${orbit.label} — vyba`,
+          `${orbit.label} · vyba`,
           orbit.description,
           orbit.tracks.map((t) => t.uri)
         );
@@ -124,7 +124,7 @@ export default function OrbitPage() {
         <div className={styles.headerLeft}>
           <Logo size={24} />
           <span className={styles.issueBadge}>
-            Issue #{String(Math.floor(Date.now() / 86400000) % 1000).padStart(3, '0')} — Your Daily Dig
+            Issue #{String(Math.floor(Date.now() / 86400000) % 1000).padStart(3, '0')} · Your Daily Dig
           </span>
           <p className={styles.subtitle}>
             {readyOrbits.length} section{readyOrbits.length !== 1 ? 's' : ''}, {totalTracks} tracks

@@ -132,7 +132,7 @@ export default function TodayPage() {
       <header className={styles.header}>
         <Logo size={24} />
         <p className={styles.issueLine}>
-          Issue #{String(issue.issue_number).padStart(3, '0')} — {today}
+          Issue #{String(issue.issue_number).padStart(3, '0')} · {today}
         </p>
       </header>
 

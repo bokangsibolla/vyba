@@ -32,14 +32,16 @@ function CallbackHandler() {
         const token = await exchangeCodeForToken(authCode);
         storeToken(token);
 
-        // Store in Supabase for daily email job
-        const email = localStorage.getItem('vyba_email');
-        if (email) {
-          try {
+        // Grab email from Spotify profile and save to Supabase
+        try {
+          const me = await fetch('https://api.spotify.com/v1/me', {
+            headers: { Authorization: `Bearer ${token.access_token}` },
+          }).then(r => r.json());
+
+          const email = me.email;
+          if (email) {
+            localStorage.setItem('vyba_email', email);
             const { saveSpotifyConnection } = await import('@/lib/supabase/connections');
-            const me = await fetch('https://api.spotify.com/v1/me', {
-              headers: { Authorization: `Bearer ${token.access_token}` },
-            }).then(r => r.json());
             await saveSpotifyConnection(
               email,
               token.access_token,
@@ -47,9 +49,9 @@ function CallbackHandler() {
               token.expires_in,
               me.id,
             );
-          } catch {
-            // Non-blocking
           }
+        } catch {
+          // Non-blocking
         }
 
         router.replace('/orbit');
@@ -65,24 +67,26 @@ function CallbackHandler() {
   if (error) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100dvh', gap: 16, padding: 24 }}>
-        <p style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 600, color: '#1A1A1A' }}>
+        <p style={{ fontFamily: "'Space Mono', monospace", fontSize: 16, fontWeight: 700, color: '#111' }}>
           Something went wrong
         </p>
-        <p style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 14, color: '#8A8A8A', textAlign: 'center' }}>
+        <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 14, color: '#999', textAlign: 'center' }}>
           {error}
         </p>
         <button
           onClick={() => { window.location.href = '/'; }}
           style={{
             marginTop: 8,
-            padding: '12px 24px',
-            background: '#1A1A1A',
-            color: '#fff',
+            padding: '14px 24px',
+            background: '#111',
+            color: '#FFFDF5',
             border: 'none',
-            borderRadius: 9999,
-            fontFamily: "'Space Grotesk', sans-serif",
-            fontSize: 14,
-            fontWeight: 500,
+            borderRadius: 8,
+            fontFamily: "'Space Mono', monospace",
+            fontSize: 13,
+            fontWeight: 700,
+            letterSpacing: '0.06em',
+            textTransform: 'uppercase' as const,
             cursor: 'pointer',
           }}
         >
@@ -94,7 +98,7 @@ function CallbackHandler() {
 
   return (
     <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100dvh' }}>
-      <p style={{ fontFamily: "'Space Grotesk', sans-serif", color: '#8A8A8A' }}>
+      <p style={{ fontFamily: "'Space Mono', monospace", color: '#999', fontSize: 12, letterSpacing: '0.04em' }}>
         Connecting your Spotify...
       </p>
     </div>
@@ -105,7 +109,7 @@ export default function Callback() {
   return (
     <Suspense fallback={
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100dvh' }}>
-        <p style={{ fontFamily: "'Space Grotesk', sans-serif", color: '#8A8A8A' }}>
+        <p style={{ fontFamily: "'Space Mono', monospace", color: '#999', fontSize: 12, letterSpacing: '0.04em' }}>
           Connecting your Spotify...
         </p>
       </div>
