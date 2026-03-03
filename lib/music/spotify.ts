@@ -1,0 +1,110 @@
+import { MusicService, MusicTrack, MusicArtist } from './types';
+
+const BASE = 'https://api.spotify.com/v1';
+
+const TIME_RANGE_MAP = {
+  short: 'short_term',
+  medium: 'medium_term',
+  long: 'long_term',
+} as const;
+
+export class SpotifyService implements MusicService {
+  readonly service = 'spotify' as const;
+  private token: string;
+
+  constructor(token: string) {
+    this.token = token;
+  }
+
+  private async fetch<T>(path: string): Promise<T> {
+    const res = await fetch(`${BASE}${path}`, {
+      headers: { Authorization: `Bearer ${this.token}` },
+    });
+    if (!res.ok) throw new Error(`Spotify API ${res.status}`);
+    return res.json();
+  }
+
+  async getTopTracks(timeRange: 'short' | 'medium' | 'long', limit = 50): Promise<MusicTrack[]> {
+    const data = await this.fetch<{ items: SpotifyRawTrack[] }>(
+      `/me/top/tracks?time_range=${TIME_RANGE_MAP[timeRange]}&limit=${limit}`
+    );
+    return data.items.map(toMusicTrack);
+  }
+
+  async getTopArtists(timeRange: 'short' | 'medium' | 'long', limit = 50): Promise<MusicArtist[]> {
+    const data = await this.fetch<{ items: SpotifyRawArtist[] }>(
+      `/me/top/artists?time_range=${TIME_RANGE_MAP[timeRange]}&limit=${limit}`
+    );
+    return data.items.map(toMusicArtist);
+  }
+
+  async searchTracks(query: string, limit = 10): Promise<MusicTrack[]> {
+    const q = encodeURIComponent(query);
+    const data = await this.fetch<{ tracks: { items: SpotifyRawTrack[] } }>(
+      `/search?q=${q}&type=track&limit=${limit}`
+    );
+    return data.tracks.items.map(toMusicTrack);
+  }
+
+  async searchTracksByArtist(artistName: string, limit = 5): Promise<MusicTrack[]> {
+    return this.searchTracks(`artist:"${artistName}"`, limit);
+  }
+
+  async createPlaylist(name: string, description: string, trackUris: string[]): Promise<string> {
+    const user = await this.fetch<{ id: string }>('/me');
+    const playlist = await fetch(`${BASE}/users/${user.id}/playlists`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${this.token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, description, public: false }),
+    }).then(r => r.json());
+
+    await fetch(`${BASE}/playlists/${playlist.id}/items`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${this.token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uris: trackUris }),
+    });
+
+    return playlist.external_urls.spotify;
+  }
+}
+
+interface SpotifyRawTrack {
+  id: string;
+  name: string;
+  artists: { id: string; name: string }[];
+  album: { id: string; name: string; images: { url: string }[] };
+  uri: string;
+  external_urls: { spotify: string };
+}
+
+interface SpotifyRawArtist {
+  id: string;
+  name: string;
+  genres: string[];
+  images: { url: string }[];
+}
+
+function toMusicTrack(t: SpotifyRawTrack): MusicTrack {
+  return {
+    id: t.id,
+    name: t.name,
+    artist: t.artists.map(a => a.name).join(', '),
+    artistId: t.artists[0]?.id ?? '',
+    album: t.album.name,
+    albumId: t.album.id,
+    imageUrl: t.album.images[0]?.url ?? '',
+    externalUrl: t.external_urls.spotify,
+    uri: t.uri,
+    service: 'spotify',
+  };
+}
+
+function toMusicArtist(a: SpotifyRawArtist): MusicArtist {
+  return {
+    id: a.id,
+    name: a.name,
+    genres: a.genres,
+    imageUrl: a.images[0]?.url ?? '',
+    service: 'spotify',
+  };
+}
