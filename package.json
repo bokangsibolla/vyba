@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@react-email/components": "^1.0.8",
     "@supabase/supabase-js": "^2.98.0",
     "framer-motion": "^12.34.4",
     "next": "16.1.6",
