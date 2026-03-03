@@ -121,10 +121,13 @@ export default function OrbitPage() {
   return (
     <main className={styles.main}>
       <header className={styles.header}>
-        <div>
+        <div className={styles.headerLeft}>
           <Logo size={24} />
+          <span className={styles.issueBadge}>
+            Issue #{String(Math.floor(Date.now() / 86400000) % 1000).padStart(3, '0')} — Your Daily Dig
+          </span>
           <p className={styles.subtitle}>
-            {readyOrbits.length} playlist{readyOrbits.length !== 1 ? 's' : ''}, {totalTracks} tracks discovered
+            {readyOrbits.length} section{readyOrbits.length !== 1 ? 's' : ''}, {totalTracks} tracks
           </p>
         </div>
         <button className={styles.logoutBtn} onClick={() => { logout(); router.replace('/'); }}>

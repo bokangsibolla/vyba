@@ -5,7 +5,7 @@ import {
   searchTracksByArtist,
   discoverByGenres,
 } from '@/lib/spotify/api';
-import { orbitColors, orbitMeta } from '@/lib/tokens';
+import { sectionColors, sectionMeta } from '@/lib/tokens';
 import {
   DiscoveryOrbit,
   EngineState,
@@ -40,11 +40,13 @@ function makeOrbit(
   artists: DiscoveredArtist[],
   confidence: number,
 ): DiscoveryOrbit {
+  const meta = sectionMeta[id as keyof typeof sectionMeta];
+  const color = sectionColors[id as keyof typeof sectionColors];
   return {
     id,
-    label: orbitMeta[id].label,
-    description: orbitMeta[id].description,
-    color: orbitColors[id],
+    label: meta?.label ?? id,
+    description: meta?.tagline ?? '',
+    color: { name: id, from: color?.bg ?? '#F0F0F0', to: color?.accent ?? '#888888' },
     tracks,
     artists,
     confidence: Math.min(1, Math.max(0, confidence)),

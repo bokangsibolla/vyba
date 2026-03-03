@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { DiscoveryOrbit } from '@/lib/engine/types';
+import { sectionColors } from '@/lib/tokens';
 import styles from './PlaylistCard.module.css';
 
 interface Props {
@@ -17,19 +18,12 @@ function AlbumMosaic({ orbit }: { orbit: DiscoveryOrbit }) {
     .slice(0, 4);
 
   return (
-    <div
-      className={styles.mosaic}
-      style={{ background: `linear-gradient(135deg, ${orbit.color.from}, ${orbit.color.to})` }}
-    >
+    <div className={styles.mosaic}>
       {images.map((url, i) => (
         <img key={i} src={url} alt="" className={styles.mosaicImg} />
       ))}
       {Array.from({ length: Math.max(0, 4 - images.length) }).map((_, i) => (
-        <div
-          key={`ph-${i}`}
-          className={styles.mosaicPlaceholder}
-          style={{ background: `linear-gradient(135deg, ${orbit.color.from}, ${orbit.color.to})` }}
-        />
+        <div key={`ph-${i}`} className={styles.mosaicPlaceholder} />
       ))}
     </div>
   );
@@ -37,16 +31,23 @@ function AlbumMosaic({ orbit }: { orbit: DiscoveryOrbit }) {
 
 export default function PlaylistCard({ orbit, savedUrl }: Props) {
   const [expanded, setExpanded] = useState(false);
+  const section = sectionColors[orbit.id as keyof typeof sectionColors] ?? sectionColors.roots;
 
   return (
     <div className={styles.card}>
+      <div
+        className={styles.sectionBar}
+        style={{ background: section.bg, color: section.accent }}
+      >
+        <span className={styles.sectionLabel}>{section.label}</span>
+        <span className={styles.sectionCount}>{orbit.tracks.length} tracks</span>
+      </div>
+
       <div className={styles.cardHeader} onClick={() => setExpanded(!expanded)}>
         <AlbumMosaic orbit={orbit} />
         <div className={styles.headerInfo}>
-          <div className={styles.orbitLabel}>{orbit.label}</div>
-          <div className={styles.orbitDesc}>{orbit.description}</div>
+          <div className={styles.orbitTagline}>{orbit.description}</div>
         </div>
-        <span className={styles.trackCount}>{orbit.tracks.length}</span>
         <span className={`${styles.expandIcon} ${expanded ? styles.expandIconOpen : ''}`}>&#9654;</span>
       </div>
 
@@ -68,7 +69,7 @@ export default function PlaylistCard({ orbit, savedUrl }: Props) {
                   rel="noopener noreferrer"
                   className={styles.trackRow}
                 >
-                  <span className={styles.trackNum}>{i + 1}</span>
+                  <span className={styles.trackNum}>{String(i + 1).padStart(2, '0')}</span>
                   {track.album.images.length > 0 && (
                     <img
                       src={track.album.images[track.album.images.length - 1]?.url}

@@ -2,46 +2,63 @@
   min-height: 100dvh;
   padding: 24px;
   padding-top: env(safe-area-inset-top, 24px);
-  padding-bottom: 80px;
+  padding-bottom: 100px;
+  max-width: 600px;
+  margin: 0 auto;
 }
 
 .header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  margin-bottom: 24px;
+  margin-bottom: 32px;
+  padding-bottom: 16px;
+  border-bottom: 2px solid #111111;
+}
+
+.headerLeft {}
+
+.issueBadge {
+  font-family: 'Space Mono', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  color: #FF4D00;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-top: 6px;
+  display: block;
 }
 
 .subtitle {
+  font-family: 'Inter', sans-serif;
   font-size: 13px;
-  color: #8A8A8A;
-  font-weight: 400;
+  color: #6B6B6B;
   margin-top: 4px;
 }
 
 .logoutBtn {
   background: none;
   border: none;
-  font-family: 'Space Grotesk', sans-serif;
-  font-size: 13px;
-  color: #8A8A8A;
+  font-family: 'Space Mono', monospace;
+  font-size: 11px;
+  color: #6B6B6B;
   cursor: pointer;
   padding: 8px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   transition: color 0.15s ease;
 }
 
 .logoutBtn:hover {
-  color: #1A1A1A;
+  color: #111111;
 }
 
-/* Playlist cards */
 .cards {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
 }
 
-/* Save all section */
 .saveSection {
   position: fixed;
   bottom: 0;
@@ -49,7 +66,7 @@
   right: 0;
   padding: 16px 24px;
   padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
-  background: linear-gradient(transparent, #FFFFFF 30%);
+  background: linear-gradient(transparent, #FFFDF5 30%);
   text-align: center;
 }
 
@@ -57,13 +74,15 @@
   width: 100%;
   max-width: 400px;
   padding: 16px 24px;
-  background: #1A1A1A;
-  color: #FFFFFF;
+  background: #111111;
+  color: #FFFDF5;
   border: none;
-  border-radius: 9999px;
-  font-family: 'Space Grotesk', sans-serif;
-  font-size: 16px;
-  font-weight: 600;
+  border-radius: 8px;
+  font-family: 'Space Mono', monospace;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   cursor: pointer;
   transition: opacity 0.2s ease;
 }
@@ -78,28 +97,24 @@
 }
 
 .savedMessage {
-  font-size: 15px;
-  font-weight: 500;
-  color: #1DB954;
+  font-family: 'Space Mono', monospace;
+  font-size: 13px;
+  font-weight: 700;
+  color: #2D8B4E;
 }
 
-/* Footer */
 .footer {
-  position: fixed;
-  bottom: 80px;
-  left: 0;
-  right: 0;
   text-align: center;
-  pointer-events: none;
+  margin-top: 32px;
 }
 
 .footerText {
-  font-size: 12px;
-  color: #BEBEBE;
-  letter-spacing: 0.02em;
+  font-family: 'Space Mono', monospace;
+  font-size: 11px;
+  color: #B5AFA5;
+  letter-spacing: 0.04em;
 }
 
-/* Error state */
 .errorContainer {
   display: flex;
   flex-direction: column;
@@ -111,14 +126,16 @@
 }
 
 .errorTitle {
+  font-family: 'Space Mono', monospace;
   font-size: 16px;
-  font-weight: 600;
-  color: #1A1A1A;
+  font-weight: 700;
+  color: #111111;
 }
 
 .errorMessage {
+  font-family: 'Inter', sans-serif;
   font-size: 14px;
-  color: #8A8A8A;
+  color: #6B6B6B;
   max-width: 300px;
 }
 
@@ -130,13 +147,15 @@
 
 .retryBtn {
   padding: 12px 24px;
-  background: #1A1A1A;
-  color: #fff;
+  background: #111111;
+  color: #FFFDF5;
   border: none;
-  border-radius: 9999px;
-  font-family: 'Space Grotesk', sans-serif;
-  font-size: 14px;
-  font-weight: 500;
+  border-radius: 8px;
+  font-family: 'Space Mono', monospace;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   cursor: pointer;
   transition: opacity 0.2s ease;
 }
@@ -148,17 +167,17 @@
 .logoutBtnAlt {
   padding: 12px 24px;
   background: none;
-  color: #8A8A8A;
-  border: 1px solid #EBEBEB;
-  border-radius: 9999px;
-  font-family: 'Space Grotesk', sans-serif;
-  font-size: 14px;
+  color: #6B6B6B;
+  border: 2px solid #E5DDD0;
+  border-radius: 8px;
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.15s ease;
 }
 
 .logoutBtnAlt:hover {
-  border-color: #1A1A1A;
-  color: #1A1A1A;
+  border-color: #111111;
+  color: #111111;
 }
