@@ -7,6 +7,13 @@ export interface SpotifyToken {
   timestamp: number;
 }
 
+export interface SpotifyArtist {
+  id: string;
+  name: string;
+  genres: string[];
+  images: { url: string; width: number; height: number }[];
+}
+
 export interface SpotifyTrack {
   id: string;
   name: string;
@@ -21,19 +28,6 @@ export interface SpotifyTrack {
   external_urls: { spotify: string };
 }
 
-export interface AudioFeatures {
-  id: string;
-  danceability: number;
-  energy: number;
-  valence: number;
-  acousticness: number;
-  instrumentalness: number;
-  tempo: number;
-  loudness: number;
-  speechiness: number;
-  liveness: number;
-}
-
-export interface TrackWithFeatures extends SpotifyTrack {
-  features: AudioFeatures;
+export interface TrackWithGenres extends SpotifyTrack {
+  genres: string[];
 }

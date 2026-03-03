@@ -24,13 +24,7 @@ export default function GeneratePlaylist({ vibe }: Props) {
     setIsGenerating(true);
     try {
       const seeds = vibe.tracks.slice(0, 5).map((t) => t.id);
-      const tracks = await getRecommendations(token, seeds, {
-        energy: vibe.centroid.energy,
-        valence: vibe.centroid.valence,
-        danceability: vibe.centroid.danceability,
-        acousticness: vibe.centroid.acousticness,
-        tempo: vibe.centroid.tempo,
-      }, 30);
+      const tracks = await getRecommendations(token, seeds, 30);
       setDiscoveries(tracks);
     } catch {
       // Silent fail for now

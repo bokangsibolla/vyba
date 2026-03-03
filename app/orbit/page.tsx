@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { getStoredToken, logout } from '@/lib/spotify/auth';
-import { getAllTopTracksWithFeatures } from '@/lib/spotify/api';
+import { getAllTopTracksWithGenres } from '@/lib/spotify/api';
 import { buildVibeMap, VibeCluster } from '@/lib/clustering';
 import OrbitMap from '@/components/OrbitMap';
 import LoadingState from '@/components/LoadingState';
@@ -29,15 +29,14 @@ export default function OrbitPage() {
       return;
     }
 
-    getAllTopTracksWithFeatures(token)
+    getAllTopTracksWithGenres(token)
       .then((tracks) => {
         if (tracks.length === 0) {
           setError('No listening data found. Listen to more music on Spotify and try again.');
           setIsLoading(false);
           return;
         }
-        const k = Math.min(6, Math.max(3, Math.floor(tracks.length / 15)));
-        const clusters = buildVibeMap(tracks, k);
+        const clusters = buildVibeMap(tracks);
         setVibes(clusters);
         setIsLoading(false);
       })
