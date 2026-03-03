@@ -34,6 +34,17 @@ const FRONTIER_BOOST = 1.5;
 
 // --- Helpers ---
 
+/** Keep only one track per artist within a playlist */
+function dedupeByArtist(tracks: SpotifyTrack[]): SpotifyTrack[] {
+  const seen = new Set<string>();
+  return tracks.filter((t) => {
+    const key = t.artists[0]?.name?.toLowerCase() ?? t.id;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 function makeOrbit(
   id: OrbitId,
   tracks: SpotifyTrack[],
@@ -42,15 +53,16 @@ function makeOrbit(
 ): DiscoveryOrbit {
   const meta = sectionMeta[id as keyof typeof sectionMeta];
   const color = sectionColors[id as keyof typeof sectionColors];
+  const dedupedTracks = dedupeByArtist(tracks);
   return {
     id,
     label: meta?.label ?? id,
     description: meta?.tagline ?? '',
     color: { name: id, from: color?.bg ?? '#F0F0F0', to: color?.accent ?? '#888888' },
-    tracks,
+    tracks: dedupedTracks,
     artists,
     confidence: Math.min(1, Math.max(0, confidence)),
-    status: tracks.length > 0 ? 'ready' : 'error',
+    status: dedupedTracks.length > 0 ? 'ready' : 'error',
   };
 }
 

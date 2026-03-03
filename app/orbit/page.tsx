@@ -17,6 +17,7 @@ interface SavedPlaylist {
   spotifyId: string;
   url: string;
   trackCount: number;
+  tracks: { name: string; artist: string }[];
 }
 
 export default function OrbitPage() {
@@ -86,6 +87,10 @@ export default function OrbitPage() {
             spotifyId: result.id,
             url: result.url,
             trackCount: orbit.tracks.length,
+            tracks: orbit.tracks.map((t) => ({
+              name: t.name,
+              artist: t.artists.map((a) => a.name).join(', '),
+            })),
           });
         } catch {
           // Continue with others
@@ -94,6 +99,33 @@ export default function OrbitPage() {
 
       setPlaylists(saved);
       setPhase('done');
+
+      // Send first dig email
+      const email = localStorage.getItem('vyba_email');
+      if (email && saved.length > 0) {
+        try {
+          const me = await fetch('https://api.spotify.com/v1/me', {
+            headers: { Authorization: `Bearer ${tkn}` },
+          }).then((r) => r.json());
+
+          await fetch('/api/send-dig', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              email,
+              displayName: me.display_name || 'friend',
+              playlists: saved.map((p) => ({
+                label: p.label,
+                spotifyUrl: p.url,
+                trackCount: p.trackCount,
+                tracks: p.tracks,
+              })),
+            }),
+          });
+        } catch {
+          // Email send is non-blocking
+        }
+      }
     }
 
     saveAll(readyOrbits, token);
