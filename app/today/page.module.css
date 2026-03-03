@@ -1,0 +1,66 @@
+.main {
+  min-height: 100dvh;
+  padding: 24px;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.header {
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 2px solid #111111;
+}
+
+.issueLine {
+  font-family: 'Space Mono', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  color: #FF4D00;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-top: 8px;
+}
+
+.djIntro {
+  font-family: 'Inter', sans-serif;
+  font-size: 15px;
+  color: #111111;
+  line-height: 1.6;
+  margin: 24px 0;
+}
+
+.teaser {
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  color: #6B6B6B;
+  font-style: italic;
+  line-height: 1.5;
+  padding: 16px;
+  border: 1px dashed #E5DDD0;
+  border-radius: 8px;
+  margin: 24px 0;
+  text-align: center;
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 60dvh;
+  gap: 16px;
+  text-align: center;
+}
+
+.emptyTitle {
+  font-family: 'Space Mono', monospace;
+  font-size: 16px;
+  font-weight: 700;
+  color: #111111;
+}
+
+.emptyDesc {
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  color: #6B6B6B;
+}
