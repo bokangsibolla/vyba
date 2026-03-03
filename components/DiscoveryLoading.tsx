@@ -1,21 +1,26 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { SignalProgress } from '@/lib/engine/types';
 import styles from './DiscoveryLoading.module.css';
 
-interface Props {
-  progress: SignalProgress[];
-}
+const messages = [
+  'Listening to your library...',
+  'Finding the good stuff...',
+  'Digging deeper...',
+  'Almost there...',
+];
 
-function StepIcon({ status }: { status: SignalProgress['status'] }) {
-  if (status === 'done') return <span className={styles.icon}>&#10003;</span>;
-  if (status === 'loading') return <span className={styles.icon}><span className={styles.spinner} /></span>;
-  if (status === 'error') return <span className={styles.icon}>&#10007;</span>;
-  return <span className={styles.icon}><span className={styles.dot} /></span>;
-}
+export default function DiscoveryLoading() {
+  const [msgIndex, setMsgIndex] = useState(0);
 
-export default function DiscoveryLoading({ progress }: Props) {
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setMsgIndex((i) => (i + 1) % messages.length);
+    }, 3000);
+    return () => clearInterval(interval);
+  }, []);
+
   return (
     <div className={styles.container}>
       <motion.div
@@ -25,22 +30,15 @@ export default function DiscoveryLoading({ progress }: Props) {
       >
         vyba
       </motion.div>
-      <p className={styles.subtitle}>mapping your universe...</p>
-      <div className={styles.steps}>
-        {progress.map((step, i) => (
-          <motion.div
-            key={step.label}
-            className={`${styles.step} ${step.status === 'done' ? styles.stepDone : ''} ${step.status === 'error' ? styles.stepError : ''}`}
-            initial={{ opacity: 0, x: -8 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: i * 0.15, duration: 0.3 }}
-          >
-            <StepIcon status={step.status} />
-            <span className={styles.label}>{step.label}</span>
-            {step.detail && <span className={styles.detail}>{step.detail}</span>}
-          </motion.div>
-        ))}
-      </div>
+      <motion.p
+        key={msgIndex}
+        className={styles.subtitle}
+        initial={{ opacity: 0, y: 4 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+      >
+        {messages[msgIndex]}
+      </motion.p>
     </div>
   );
 }

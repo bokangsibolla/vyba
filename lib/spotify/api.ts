@@ -120,7 +120,7 @@ export async function createPlaylist(
   name: string,
   description: string,
   trackUris: string[]
-): Promise<string> {
+): Promise<{ url: string; id: string }> {
   const user = await spotifyFetch<{ id: string }>(token, '/me');
 
   const playlist = await fetch(`${BASE}/users/${user.id}/playlists`, {
@@ -141,7 +141,7 @@ export async function createPlaylist(
     body: JSON.stringify({ uris: trackUris }),
   });
 
-  return playlist.external_urls.spotify;
+  return { url: playlist.external_urls.spotify, id: playlist.id };
 }
 
 export async function searchPlaylistsForTrack(

@@ -2,38 +2,16 @@
   min-height: 100dvh;
   padding: 24px;
   padding-top: env(safe-area-inset-top, 24px);
-  padding-bottom: 100px;
+  padding-bottom: 64px;
   max-width: 600px;
   margin: 0 auto;
 }
 
 .header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   margin-bottom: 32px;
-  padding-bottom: 16px;
-  border-bottom: 2px solid #111111;
-}
-
-.headerLeft {}
-
-.issueBadge {
-  font-family: 'Space Mono', monospace;
-  font-size: 11px;
-  font-weight: 700;
-  color: #FF4D00;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  margin-top: 6px;
-  display: block;
-}
-
-.subtitle {
-  font-family: 'Inter', sans-serif;
-  font-size: 13px;
-  color: #6B6B6B;
-  margin-top: 4px;
 }
 
 .logoutBtn {
@@ -41,7 +19,7 @@
   border: none;
   font-family: 'Space Mono', monospace;
   font-size: 11px;
-  color: #6B6B6B;
+  color: #999;
   cursor: pointer;
   padding: 8px;
   letter-spacing: 0.04em;
@@ -50,68 +28,74 @@
 }
 
 .logoutBtn:hover {
-  color: #111111;
+  color: #111;
 }
 
-.cards {
+.hero {
+  text-align: center;
+  margin-bottom: 40px;
+}
+
+.heroTitle {
+  font-family: 'Instrument Serif', serif;
+  font-size: 40px;
+  font-weight: 400;
+  color: #111;
+  line-height: 1.1;
+  margin-bottom: 12px;
+}
+
+.heroSub {
+  font-family: 'Space Mono', monospace;
+  font-size: 12px;
+  color: #999;
+  letter-spacing: 0.04em;
+  line-height: 1.6;
+}
+
+.playlists {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 20px;
 }
 
-.saveSection {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  padding: 16px 24px;
-  padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
-  background: linear-gradient(transparent, #FFFDF5 30%);
-  text-align: center;
+.playlistCard {
+  border: 2px solid #E5DDD0;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #FFFDF5;
 }
 
-.saveAllBtn {
-  width: 100%;
-  max-width: 400px;
-  padding: 16px 24px;
-  background: #111111;
-  color: #FFFDF5;
-  border: none;
-  border-radius: 8px;
+.playlistLabel {
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   font-family: 'Space Mono', monospace;
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 700;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  cursor: pointer;
-  transition: opacity 0.2s ease;
 }
 
-.saveAllBtn:hover:not(:disabled) {
-  opacity: 0.85;
+.trackCount {
+  font-weight: 400;
 }
 
-.saveAllBtn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.savedMessage {
-  font-family: 'Space Mono', monospace;
-  font-size: 13px;
-  font-weight: 700;
-  color: #2D8B4E;
+.embed {
+  border: none;
+  border-radius: 0;
 }
 
 .footer {
   text-align: center;
-  margin-top: 32px;
+  margin-top: 40px;
 }
 
 .footerText {
   font-family: 'Space Mono', monospace;
-  font-size: 11px;
-  color: #B5AFA5;
+  font-size: 12px;
+  color: #999;
   letter-spacing: 0.04em;
 }
 
@@ -129,13 +113,13 @@
   font-family: 'Space Mono', monospace;
   font-size: 16px;
   font-weight: 700;
-  color: #111111;
+  color: #111;
 }
 
 .errorMessage {
   font-family: 'Inter', sans-serif;
   font-size: 14px;
-  color: #6B6B6B;
+  color: #999;
   max-width: 300px;
 }
 
@@ -147,7 +131,7 @@
 
 .retryBtn {
   padding: 12px 24px;
-  background: #111111;
+  background: #111;
   color: #FFFDF5;
   border: none;
   border-radius: 8px;
@@ -167,7 +151,7 @@
 .logoutBtnAlt {
   padding: 12px 24px;
   background: none;
-  color: #6B6B6B;
+  color: #999;
   border: 2px solid #E5DDD0;
   border-radius: 8px;
   font-family: 'Inter', sans-serif;
@@ -178,6 +162,6 @@
 }
 
 .logoutBtnAlt:hover {
-  border-color: #111111;
-  color: #111111;
+  border-color: #111;
+  color: #111;
 }

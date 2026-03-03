@@ -5,11 +5,19 @@ import { useRouter } from 'next/navigation';
 import { getStoredToken, logout } from '@/lib/spotify/auth';
 import { createPlaylist } from '@/lib/spotify/api';
 import { runDiscoveryEngine } from '@/lib/engine';
-import { EngineState } from '@/lib/engine/types';
+import { EngineState, DiscoveryOrbit } from '@/lib/engine/types';
+import { sectionColors } from '@/lib/tokens';
 import DiscoveryLoading from '@/components/DiscoveryLoading';
-import PlaylistCard from '@/components/PlaylistCard';
 import Logo from '@/components/Logo';
 import styles from './page.module.css';
+
+interface SavedPlaylist {
+  orbitId: string;
+  label: string;
+  spotifyId: string;
+  url: string;
+  trackCount: number;
+}
 
 export default function OrbitPage() {
   const router = useRouter();
@@ -19,9 +27,8 @@ export default function OrbitPage() {
     progress: [],
   });
   const [error, setError] = useState<string | null>(null);
-  const [savedUrls, setSavedUrls] = useState<Record<string, string>>({});
-  const [isSavingAll, setIsSavingAll] = useState(false);
-  const [allSaved, setAllSaved] = useState(false);
+  const [playlists, setPlaylists] = useState<SavedPlaylist[]>([]);
+  const [phase, setPhase] = useState<'loading' | 'saving' | 'done'>('loading');
   const fetched = useRef(false);
 
   const handleProgress = useCallback((state: EngineState) => {
@@ -29,6 +36,7 @@ export default function OrbitPage() {
     if (state.error) setError(state.error);
   }, []);
 
+  // Step 1: Run discovery
   useEffect(() => {
     if (fetched.current) return;
     fetched.current = true;
@@ -50,39 +58,46 @@ export default function OrbitPage() {
       });
   }, [router, handleProgress]);
 
-  const saveAll = async () => {
+  // Step 2: Auto-create playlists when discovery completes
+  useEffect(() => {
+    if (engineState.isLoading || phase !== 'loading') return;
+    const readyOrbits = engineState.orbits.filter((o) => o.status === 'ready' && o.tracks.length > 0);
+    if (readyOrbits.length === 0) return;
+
     const token = getStoredToken();
     if (!token) return;
 
-    const orbits = engineState.orbits.filter((o) => o.status === 'ready' && o.tracks.length > 0);
-    if (orbits.length === 0) return;
+    setPhase('saving');
 
-    setIsSavingAll(true);
-    const urls: Record<string, string> = { ...savedUrls };
+    async function saveAll(orbits: DiscoveryOrbit[], tkn: string) {
+      const saved: SavedPlaylist[] = [];
 
-    for (const orbit of orbits) {
-      if (urls[orbit.id]) continue;
-      try {
-        const url = await createPlaylist(
-          token,
-          `${orbit.label} · vyba`,
-          orbit.description,
-          orbit.tracks.map((t) => t.uri)
-        );
-        urls[orbit.id] = url;
-        setSavedUrls({ ...urls });
-      } catch {
-        // continue with others
+      for (const orbit of orbits) {
+        try {
+          const result = await createPlaylist(
+            tkn,
+            `${orbit.label} · vyba`,
+            orbit.description,
+            orbit.tracks.map((t) => t.uri)
+          );
+          saved.push({
+            orbitId: orbit.id,
+            label: orbit.label,
+            spotifyId: result.id,
+            url: result.url,
+            trackCount: orbit.tracks.length,
+          });
+        } catch {
+          // Continue with others
+        }
       }
+
+      setPlaylists(saved);
+      setPhase('done');
     }
 
-    setSavedUrls(urls);
-    setIsSavingAll(false);
-    setAllSaved(true);
-  };
-
-  const readyOrbits = engineState.orbits.filter((o) => o.status === 'ready' && o.tracks.length > 0);
-  const totalTracks = readyOrbits.reduce((sum, o) => sum + o.tracks.length, 0);
+    saveAll(readyOrbits, token);
+  }, [engineState.isLoading, engineState.orbits, phase]);
 
   if (error) {
     return (
@@ -97,6 +112,7 @@ export default function OrbitPage() {
               onClick={() => {
                 fetched.current = false;
                 setError(null);
+                setPhase('loading');
                 setEngineState({ orbits: [], isLoading: true, progress: [] });
               }}
             >
@@ -114,51 +130,59 @@ export default function OrbitPage() {
     );
   }
 
-  if (engineState.isLoading) {
-    return <DiscoveryLoading progress={engineState.progress} />;
+  if (phase !== 'done') {
+    return <DiscoveryLoading />;
   }
+
+  const totalTracks = playlists.reduce((sum, p) => sum + p.trackCount, 0);
 
   return (
     <main className={styles.main}>
       <header className={styles.header}>
-        <div className={styles.headerLeft}>
-          <Logo size={24} />
-          <span className={styles.issueBadge}>
-            Issue #{String(Math.floor(Date.now() / 86400000) % 1000).padStart(3, '0')} · Your Daily Dig
-          </span>
-          <p className={styles.subtitle}>
-            {readyOrbits.length} section{readyOrbits.length !== 1 ? 's' : ''}, {totalTracks} tracks
-          </p>
-        </div>
+        <Logo size={24} />
         <button className={styles.logoutBtn} onClick={() => { logout(); router.replace('/'); }}>
           Log out
         </button>
       </header>
 
-      <div className={styles.cards}>
-        {readyOrbits.map((orbit) => (
-          <PlaylistCard key={orbit.id} orbit={orbit} savedUrl={savedUrls[orbit.id]} />
-        ))}
+      <div className={styles.hero}>
+        <h1 className={styles.heroTitle}>You&apos;re in.</h1>
+        <p className={styles.heroSub}>
+          {playlists.length} playlists, {totalTracks} tracks added to your Spotify.
+          Fresh ones every morning at 6am.
+        </p>
       </div>
 
-      <div className={styles.saveSection}>
-        {allSaved ? (
-          <p className={styles.savedMessage}>
-            &#10003; {Object.keys(savedUrls).length} playlist{Object.keys(savedUrls).length !== 1 ? 's' : ''} added to your Spotify
-          </p>
-        ) : (
-          <button
-            className={styles.saveAllBtn}
-            onClick={saveAll}
-            disabled={isSavingAll || readyOrbits.length === 0}
-          >
-            {isSavingAll ? 'Saving...' : 'Add all to Spotify'}
-          </button>
-        )}
+      <div className={styles.playlists}>
+        {playlists.map((pl) => {
+          const section = sectionColors[pl.orbitId as keyof typeof sectionColors];
+          return (
+            <div key={pl.orbitId} className={styles.playlistCard}>
+              <div
+                className={styles.playlistLabel}
+                style={{ background: section?.bg, color: section?.accent }}
+              >
+                <span>{section?.label ?? pl.label}</span>
+                <span className={styles.trackCount}>{pl.trackCount} tracks</span>
+              </div>
+              <iframe
+                src={`https://open.spotify.com/embed/playlist/${pl.spotifyId}?utm_source=generator&theme=0`}
+                width="100%"
+                height="352"
+                frameBorder="0"
+                allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+                loading="lazy"
+                className={styles.embed}
+              />
+            </div>
+          );
+        })}
       </div>
 
       <footer className={styles.footer}>
-        <p className={styles.footerText}>vyba.vercel.app</p>
+        <p className={styles.footerText}>
+          That&apos;s your first dig. Check your inbox tomorrow morning.
+        </p>
       </footer>
     </main>
   );
