@@ -16,12 +16,24 @@ export class SpotifyService implements MusicService {
     this.token = token;
   }
 
-  private async fetch<T>(path: string): Promise<T> {
-    const res = await fetch(`${BASE}${path}`, {
-      headers: { Authorization: `Bearer ${this.token}` },
-    });
-    if (!res.ok) throw new Error(`Spotify API ${res.status}`);
-    return res.json();
+  private async fetch<T>(path: string, retries = 3): Promise<T> {
+    for (let attempt = 0; attempt < retries; attempt++) {
+      const res = await fetch(`${BASE}${path}`, {
+        headers: { Authorization: `Bearer ${this.token}` },
+      });
+
+      if (res.status === 429) {
+        const retryAfter = parseInt(res.headers.get('Retry-After') || '3', 10);
+        const wait = Math.max(retryAfter, 2) * 1000;
+        console.log(`[vyba] Rate limited, waiting ${wait}ms (attempt ${attempt + 1}/${retries})`);
+        await new Promise(r => setTimeout(r, wait));
+        continue;
+      }
+
+      if (!res.ok) throw new Error(`Spotify API ${res.status}`);
+      return res.json();
+    }
+    throw new Error('Spotify API 429: rate limited after retries');
   }
 
   async getTopTracks(timeRange: 'short' | 'medium' | 'long', limit = 50): Promise<MusicTrack[]> {
