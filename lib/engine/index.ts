@@ -222,15 +222,6 @@ export async function runDiscoveryEngine(
   let userArtistIds: Set<string>;
 
   try {
-    // Validate token first
-    try {
-      await musicService.searchTracks('test', 1);
-    } catch (tokenErr) {
-      const msg = tokenErr instanceof Error ? tokenErr.message : 'Token validation failed';
-      console.error('[vyba] Token check failed:', msg);
-      throw new Error(`Spotify connection failed: ${msg}. Try logging out and back in.`);
-    }
-
     const [shortTracks, mediumTracks, longTracks, artists] = await Promise.all([
       musicService.getTopTracks('short', 50).catch(() => [] as MusicTrack[]),
       musicService.getTopTracks('medium', 50).catch(() => [] as MusicTrack[]),
@@ -398,11 +389,11 @@ export async function runDiscoveryEngine(
     })(),
   ]);
 
-  // Phase 3: Build orbits
+  // Phase 3: Build orbits from data we already have + minimal API calls
+  // IMPORTANT: Minimize Spotify API calls to avoid 429 rate limits.
+  // We use allTracks (already fetched) as the primary source.
   const orbits: DiscoveryOrbit[] = [];
-  const emergingGenres = frontierResult ? new Set(getEmergingGenres(frontierResult)) : new Set<string>();
 
-  // Collect user artist names for reliable padding
   const userArtistNames = Array.from(new Set([
     ...allArtists.longTerm.map((a) => a.name),
     ...allArtists.mediumTerm.map((a) => a.name),
@@ -415,155 +406,91 @@ export async function runDiscoveryEngine(
     ...allArtists.longTerm.flatMap((a) => a.genres),
   ]));
 
-  // Helper: build an orbit from artist search (reliable fallback)
-  async function buildOrbitFromArtists(
-    artists: string[],
-    excludeIds: Set<string>,
-    target: number,
-  ): Promise<MusicTrack[]> {
-    const tracks: MusicTrack[] = [];
-    const seen = new Set<string>();
-    for (const name of artists) {
-      if (tracks.length >= target) break;
-      try {
-        const results = await musicService.searchTracksByArtist(name, 5);
-        for (const t of results) {
-          if (!seen.has(t.id) && !excludeIds.has(t.id)) {
-            seen.add(t.id);
-            tracks.push(t);
-          }
-        }
-      } catch { /* skip */ }
+  // Split existing tracks into pools by time range for orbit building
+  const longTrackPool = allTracks.filter(t => {
+    const longArtists = new Set(allArtists.longTerm.map(a => a.name));
+    return longArtists.has(t.artist);
+  });
+  const shortTrackPool = allTracks.filter(t => {
+    const shortArtists = new Set(allArtists.shortTerm.map(a => a.name));
+    return shortArtists.has(t.artist);
+  });
+  const mediumTrackPool = allTracks.filter(t => {
+    const medArtists = new Set(allArtists.mediumTerm.map(a => a.name));
+    return medArtists.has(t.artist);
+  });
+
+  // Shuffle helper
+  function shuffle<T>(arr: T[]): T[] {
+    const a = [...arr];
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
     }
-    return tracks;
+    return a;
   }
 
-  // Orbit 1: Your Roots — Artists who influenced user's favorites
+  console.log('[vyba] Track pools:', { long: longTrackPool.length, medium: mediumTrackPool.length, short: shortTrackPool.length, total: allTracks.length });
+
+  // Orbit 1: ROOTS — User's long-term favorites (0 API calls)
   {
-    let rootTracks: MusicTrack[] = [];
-    let rootDiscovered: DiscoveredArtist[] = [];
-    if (wikidataResult && wikidataResult.rootArtists.length > 0) {
-      const { tracks, discovered } = await resolveArtistsToTracks(musicService, wikidataResult.rootArtists, 20);
-      rootTracks = tracks;
-      rootDiscovered = discovered;
-    }
-    // Fallback: use long-term artists (the user's roots)
-    if (rootTracks.length < MIN_TRACKS_PER_ORBIT) {
-      const longTermNames = allArtists.longTerm.map(a => a.name);
-      rootTracks = await padOrbitTracks(musicService, rootTracks, longTermNames, userTrackIds);
-    }
+    const rootTracks = shuffle(longTrackPool.length >= 15 ? longTrackPool : allTracks).slice(0, 20);
     if (rootTracks.length > 0) {
-      orbits.push(makeOrbit('roots', rootTracks, rootDiscovered, Math.min(1, rootTracks.length / 15)));
+      orbits.push(makeOrbit('roots', rootTracks, [], Math.min(1, rootTracks.length / 15)));
     }
   }
 
-  // Orbit 2: Your Edges — Top tracks from frontier artists (new interests)
+  // Orbit 2: EDGES — Short-term only tracks (recent discoveries) (0 API calls)
   {
-    const edgeTracks: MusicTrack[] = [];
-    const edgeArtists: DiscoveredArtist[] = [];
+    const shortOnly = shortTrackPool.filter(t => !longTrackPool.some(lt => lt.id === t.id));
+    const edgeTracks = shuffle(shortOnly.length >= 10 ? shortOnly : shortTrackPool).slice(0, 20);
+    if (edgeTracks.length > 0) {
+      orbits.push(makeOrbit('edges', edgeTracks, [], Math.min(1, edgeTracks.length / 15)));
+    }
+  }
+
+  // Orbit 3: CROWD — Medium-term tracks (the core taste) (0 API calls)
+  {
+    const crowdTracks = shuffle(mediumTrackPool.length >= 15 ? mediumTrackPool : allTracks).slice(0, 20);
+    // Avoid overlap with roots
+    const rootIds = new Set(orbits[0]?.tracks.map(t => t.id) ?? []);
+    const filtered = crowdTracks.filter(t => !rootIds.has(t.id));
+    if (filtered.length > 0) {
+      orbits.push(makeOrbit('crowd', filtered.length >= 15 ? filtered : crowdTracks, [], 0.6));
+    }
+  }
+
+  // Orbit 4: BLINDSPOT — Search for music outside user's bubble (max 3 API calls)
+  {
+    const blindTracks: MusicTrack[] = [];
     const seen = new Set<string>();
-
-    if (frontierResult && frontierResult.shortTermOnly.length > 0) {
-      const frontierArtists = frontierResult.shortTermOnly.slice(0, 12);
-      for (const artist of frontierArtists) {
-        try {
-          const tracks = await musicService.searchTracksByArtist(artist.name, 5);
-          for (const track of tracks) {
-            if (!seen.has(track.id) && !userTrackIds.has(track.id)) {
-              seen.add(track.id);
-              edgeTracks.push(track);
-            }
-          }
-          edgeArtists.push({
-            spotifyId: artist.id,
-            name: artist.name,
-            source: 'frontier' as const,
-            score: FRONTIER_BOOST,
-          });
-        } catch { /* skip */ }
-      }
-    }
-    // Fallback: use short-term artists (recent listening = edges)
-    const shortTermNames = allArtists.shortTerm.map(a => a.name);
-    const paddedEdges = await padOrbitTracks(musicService, edgeTracks, shortTermNames, userTrackIds);
-    if (paddedEdges.length > 0) {
-      orbits.push(makeOrbit('edges', paddedEdges, edgeArtists, Math.min(1, paddedEdges.length / 15)));
-    }
-  }
-
-  // Orbit 3: Your Crowd
-  {
-    let crowdTracks: MusicTrack[] = [];
-    let crowdDiscovered: DiscoveredArtist[] = [];
-    if (playlistResult && playlistResult.length > 0) {
-      const strongMatches = playlistResult.filter((co) => co.count >= 2);
-      const toUse = strongMatches.length >= 5 ? strongMatches : playlistResult;
-      const { tracks, discovered } = await resolveCoOccurrencesToTracks(toUse, 30);
-      crowdTracks = tracks;
-      crowdDiscovered = discovered;
-    }
-    // Fallback: use medium-term artists (the user's crowd)
-    const mediumTermNames = allArtists.mediumTerm.map(a => a.name);
-    const paddedCrowd = await padOrbitTracks(musicService, crowdTracks, mediumTermNames, userTrackIds);
-    if (paddedCrowd.length > 0) {
-      orbits.push(makeOrbit('crowd', paddedCrowd, crowdDiscovered, Math.min(1, paddedCrowd.length / 15)));
-    }
-  }
-
-  // Orbit 4: Your Blindspot — High PageRank artists user never listened to
-  {
-    let blindTracks: MusicTrack[] = [];
-    let blindDiscovered: DiscoveredArtist[] = [];
-    if (wikidataResult && wikidataResult.blindspots.length > 0) {
-      const { tracks, discovered } = await resolveArtistsToTracks(musicService, wikidataResult.blindspots, 20);
-      blindTracks = tracks;
-      blindDiscovered = discovered;
-    }
-    // Fallback: search for popular tracks in user's genres they haven't heard
-    if (blindTracks.length < MIN_TRACKS_PER_ORBIT) {
-      const searchTerms = userGenres.slice(0, 5).map(g => `${g} popular`);
-      for (const term of searchTerms) {
-        if (blindTracks.length >= MIN_TRACKS_PER_ORBIT) break;
-        try {
-          const results = await musicService.searchTracks(term, 10);
-          for (const t of results) {
-            if (!userTrackIds.has(t.id) && !blindTracks.some(bt => bt.id === t.id)) {
-              blindTracks.push(t);
-            }
-          }
-        } catch { /* skip */ }
-      }
-    }
-    if (blindTracks.length > 0) {
-      orbits.push(makeOrbit('blindspot', blindTracks, blindDiscovered, Math.min(1, blindTracks.length / 15)));
-    }
-  }
-
-  // Orbit 5: Deep Work — Instrumental/ambient from user's taste
-  {
-    const dwTracks: MusicTrack[] = [];
-    const seen = new Set<string>();
-
-    // Search for instrumental versions of user's favorite artists
-    for (const artist of userArtistNames.slice(0, 5)) {
-      if (dwTracks.length >= 20) break;
+    const blindQueries = ['best albums of all time', 'classic songs everyone knows', 'critically acclaimed music'];
+    for (const query of blindQueries) {
+      if (blindTracks.length >= 20) break;
       try {
-        const results = await musicService.searchTracks(`${artist} instrumental`, 5);
+        const results = await musicService.searchTracks(query, 20);
         for (const t of results) {
           if (!seen.has(t.id) && !userTrackIds.has(t.id)) {
             seen.add(t.id);
-            dwTracks.push(t);
+            blindTracks.push(t);
           }
         }
       } catch { /* skip */ }
     }
+    if (blindTracks.length > 0) {
+      orbits.push(makeOrbit('blindspot', blindTracks, [], 0.5));
+    }
+  }
 
-    // Also search ambient/lo-fi terms
-    const ambientTerms = ['lo-fi beats', 'ambient instrumental', 'chillhop', 'study music', 'piano ambient'];
-    for (const term of ambientTerms) {
+  // Orbit 5: DEEP WORK — Instrumental/ambient (max 3 API calls)
+  {
+    const dwTracks: MusicTrack[] = [];
+    const seen = new Set<string>();
+    const dwQueries = ['lo-fi beats to study to', 'ambient focus music', 'instrumental chill'];
+    for (const query of dwQueries) {
       if (dwTracks.length >= 20) break;
       try {
-        const results = await musicService.searchTracks(term, 5);
+        const results = await musicService.searchTracks(query, 20);
         for (const t of results) {
           if (!seen.has(t.id)) {
             seen.add(t.id);
@@ -572,62 +499,43 @@ export async function runDiscoveryEngine(
         }
       } catch { /* skip */ }
     }
-
     if (dwTracks.length > 0) {
       orbits.push(makeOrbit('deepwork', dwTracks, [], 0.5));
     }
   }
 
-  // Orbit 6: Wildcard — Random genre the user has never explored
+  // Orbit 6: WILDCARD — Random genre (1 API call)
   {
     const userGenreSet = new Set(userGenres);
-
     const wildcardGenres = [
       'afrobeats', 'bossa nova', 'k-pop', 'amapiano', 'reggaeton',
-      'shoegaze', 'city pop', 'afrofuturism', 'dub', 'highlife',
-      'tropicalia', 'cumbia', 'grime', 'baile funk', 'j-pop',
-      'dancehall', 'bolero', 'ethio-jazz', 'desert blues', 'kuduro',
+      'shoegaze', 'city pop', 'dub', 'highlife', 'tropicalia',
+      'cumbia', 'grime', 'baile funk', 'dancehall', 'ethio-jazz',
     ];
-
     const unexplored = wildcardGenres.filter(g => !userGenreSet.has(g));
     const pick = unexplored[Math.floor(Math.random() * unexplored.length)] ?? 'world music';
 
-    // Use searchTracks directly — more reliable than genre: filter
-    let wcTracks: MusicTrack[] = [];
     try {
-      wcTracks = await musicService.searchTracks(pick, 20);
+      let wcTracks = await musicService.searchTracks(pick, 20);
       wcTracks = wcTracks.filter(t => !userTrackIds.has(t.id));
+      if (wcTracks.length > 0) {
+        const wildcardOrbit = makeOrbit('wildcard', wcTracks, [], 0.4);
+        wildcardOrbit.description = `Today's left turn: ${pick}`;
+        orbits.push(wildcardOrbit);
+      }
     } catch { /* skip */ }
-
-    if (wcTracks.length > 0) {
-      const wildcardOrbit = makeOrbit('wildcard', wcTracks, [], 0.4);
-      wildcardOrbit.description = `Today's left turn: ${pick}`;
-      orbits.push(wildcardOrbit);
-    }
   }
 
-  // Graceful degradation: if no orbits, build from direct searches
-  if (orbits.length === 0) {
-    const fallbackSearches = [
-      'top hits 2025', 'new music friday', 'indie discoveries',
-      'chill vibes', 'feel good songs', 'underground hits',
-    ];
+  // Graceful degradation — should never hit this now
+  if (orbits.length === 0 && allTracks.length > 0) {
+    orbits.push(makeOrbit('edges', shuffle(allTracks).slice(0, 20), [], 0.3));
+  }
 
+  if (orbits.length === 0) {
     try {
-      const fallbackTracks: MusicTrack[] = [];
-      const seen = new Set<string>();
-      for (const query of fallbackSearches) {
-        if (fallbackTracks.length >= 20) break;
-        const results = await musicService.searchTracks(query, 10);
-        for (const t of results) {
-          if (!seen.has(t.id)) {
-            seen.add(t.id);
-            fallbackTracks.push(t);
-          }
-        }
-      }
-      if (fallbackTracks.length > 0) {
-        orbits.push(makeOrbit('edges', fallbackTracks, [], 0.3));
+      const fallback = await musicService.searchTracks('top hits', 20);
+      if (fallback.length > 0) {
+        orbits.push(makeOrbit('edges', fallback, [], 0.2));
       }
     } catch {
       // Complete failure — return empty
