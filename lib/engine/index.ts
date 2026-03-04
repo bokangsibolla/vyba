@@ -222,12 +222,24 @@ export async function runDiscoveryEngine(
   let userArtistIds: Set<string>;
 
   try {
+    // Validate token first
+    try {
+      await musicService.searchTracks('test', 1);
+    } catch (tokenErr) {
+      const msg = tokenErr instanceof Error ? tokenErr.message : 'Token validation failed';
+      console.error('[vyba] Token check failed:', msg);
+      throw new Error(`Spotify connection failed: ${msg}. Try logging out and back in.`);
+    }
+
     const [shortTracks, mediumTracks, longTracks, artists] = await Promise.all([
-      musicService.getTopTracks('short', 50),
-      musicService.getTopTracks('medium', 50),
-      musicService.getTopTracks('long', 50),
-      musicService.getTopArtistsAllRanges(),
+      musicService.getTopTracks('short', 50).catch(() => [] as MusicTrack[]),
+      musicService.getTopTracks('medium', 50).catch(() => [] as MusicTrack[]),
+      musicService.getTopTracks('long', 50).catch(() => [] as MusicTrack[]),
+      musicService.getTopArtistsAllRanges().catch(() => ({ shortTerm: [], mediumTerm: [], longTerm: [] } as { shortTerm: MusicArtist[]; mediumTerm: MusicArtist[]; longTerm: MusicArtist[] })),
     ]);
+
+    console.log('[vyba] Tracks loaded:', { short: shortTracks.length, medium: mediumTracks.length, long: longTracks.length });
+    console.log('[vyba] Artists loaded:', { short: artists.shortTerm.length, medium: artists.mediumTerm.length, long: artists.longTerm.length });
 
     // Merge all tracks (prefer short > medium > long, dedup by id)
     const seen = new Set<string>();
@@ -253,6 +265,7 @@ export async function runDiscoveryEngine(
     emit();
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to load listening data';
+    console.error('[vyba] Phase 1 error:', message);
     progress = updateProgress(progress, 0, 'error', message);
     onProgress({ orbits: [], isLoading: false, progress, error: message });
     return [];

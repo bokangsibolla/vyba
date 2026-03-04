@@ -74,11 +74,12 @@ export default function OrbitPage() {
 
     runDiscoveryEngine(ms, handleProgress)
       .then((orbits) => {
-        if (orbits.length === 0) {
-          setError('No listening data found. Listen to more music and try again.');
+        if (orbits.length === 0 && !engineState.error) {
+          setError('No orbits could be built. Try logging out and back in.');
         }
       })
       .catch((e) => {
+        console.error('[vyba] Engine error:', e);
         setError(e.message || 'Failed to load your music data');
       });
   }, [router, handleProgress]);
