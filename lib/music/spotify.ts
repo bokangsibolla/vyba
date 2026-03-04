@@ -67,7 +67,7 @@ export class SpotifyService implements MusicService {
       if (results.length >= limit) break;
       const q = encodeURIComponent(`genre:"${genre}"`);
       const data = await this.fetch<{ tracks: { items: SpotifyRawTrack[] } }>(
-        `/search?q=${q}&type=track&limit=10`
+        `/search?q=${q}&type=track&limit=20`
       );
       for (const track of data.tracks.items) {
         if (!seen.has(track.id) && !excludeIds.has(track.id)) {

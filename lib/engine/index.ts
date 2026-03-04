@@ -25,6 +25,7 @@ const WEIGHTS = {
 } as const;
 
 const FRONTIER_BOOST = 1.5;
+const MIN_TRACKS_PER_ORBIT = 15;
 
 // --- Helpers ---
 
@@ -39,6 +40,26 @@ function dedupeByArtist(tracks: MusicTrack[]): MusicTrack[] {
   });
 }
 
+/** Pad an orbit's tracks to at least MIN_TRACKS_PER_ORBIT using genre search */
+async function padOrbitTracks(
+  musicService: MusicService,
+  tracks: MusicTrack[],
+  userGenres: string[],
+  userTrackIds: Set<string>,
+): Promise<MusicTrack[]> {
+  if (tracks.length >= MIN_TRACKS_PER_ORBIT) return tracks;
+
+  const existingIds = new Set(tracks.map(t => t.id));
+  const needed = MIN_TRACKS_PER_ORBIT - tracks.length;
+
+  try {
+    const extra = await musicService.discoverByGenres(userGenres.slice(0, 5), new Set([...userTrackIds, ...existingIds]), needed);
+    return [...tracks, ...extra].slice(0, Math.max(MIN_TRACKS_PER_ORBIT, tracks.length));
+  } catch {
+    return tracks;
+  }
+}
+
 function makeOrbit(
   id: OrbitId,
   tracks: MusicTrack[],
@@ -47,13 +68,12 @@ function makeOrbit(
 ): DiscoveryOrbit {
   const meta = sectionMeta[id as keyof typeof sectionMeta];
   const color = sectionColors[id as keyof typeof sectionColors];
-  const dedupedTracks = dedupeByArtist(tracks);
   return {
     id,
     label: meta?.label ?? id,
     description: meta?.tagline ?? '',
     color: { name: id, from: color?.bg ?? '#F0F0F0', to: color?.accent ?? '#888888' },
-    tracks: dedupedTracks,
+    tracks,
     artists,
     confidence: Math.min(1, Math.max(0, confidence)),
     status: dedupedTracks.length > 0 ? 'ready' : 'error',
@@ -93,7 +113,7 @@ async function resolveArtistsToTracks(
 
   for (const artist of artists.slice(0, limit)) {
     try {
-      const results = await musicService.searchTracksByArtist(artist.name, 3);
+      const results = await musicService.searchTracksByArtist(artist.name, 5);
       for (const track of results) {
         if (!seen.has(track.id)) {
           seen.add(track.id);
@@ -330,11 +350,19 @@ export async function runDiscoveryEngine(
   const orbits: DiscoveryOrbit[] = [];
   const emergingGenres = frontierResult ? new Set(getEmergingGenres(frontierResult)) : new Set<string>();
 
+  // Collect user genres once for padding
+  const userGenres = Array.from(new Set([
+    ...allArtists.shortTerm.flatMap((a) => a.genres),
+    ...allArtists.mediumTerm.flatMap((a) => a.genres),
+    ...allArtists.longTerm.flatMap((a) => a.genres),
+  ]));
+
   // Orbit 1: Your Roots — Artists who influenced user's favorites
   if (wikidataResult && wikidataResult.rootArtists.length > 0) {
-    const { tracks, discovered } = await resolveArtistsToTracks(musicService, wikidataResult.rootArtists, 15);
+    const { tracks, discovered } = await resolveArtistsToTracks(musicService, wikidataResult.rootArtists, 20);
+    const padded = await padOrbitTracks(musicService, tracks, userGenres, userTrackIds);
     const confidence = Math.min(1, wikidataResult.rootArtists.length / 10);
-    orbits.push(makeOrbit('roots', tracks, discovered, confidence));
+    orbits.push(makeOrbit('roots', padded, discovered, confidence));
   }
 
   // Orbit 2: Your Edges — Top tracks from frontier artists (new interests)
@@ -344,9 +372,9 @@ export async function runDiscoveryEngine(
       const edgeArtists: DiscoveredArtist[] = [];
       const seen = new Set<string>();
 
-      const frontierArtists = frontierResult.shortTermOnly.slice(0, 8);
+      const frontierArtists = frontierResult.shortTermOnly.slice(0, 12);
       for (const artist of frontierArtists) {
-        const tracks = await musicService.searchTracksByArtist(artist.name, 4);
+        const tracks = await musicService.searchTracksByArtist(artist.name, 5);
         for (const track of tracks) {
           if (!seen.has(track.id) && !userTrackIds.has(track.id)) {
             seen.add(track.id);
@@ -362,8 +390,9 @@ export async function runDiscoveryEngine(
       }
 
       if (edgeTracks.length > 0) {
-        const confidence = Math.min(1, edgeTracks.length / 15);
-        orbits.push(makeOrbit('edges', edgeTracks, edgeArtists, confidence));
+        const padded = await padOrbitTracks(musicService, edgeTracks, userGenres, userTrackIds);
+        const confidence = Math.min(1, padded.length / 15);
+        orbits.push(makeOrbit('edges', padded, edgeArtists, confidence));
       }
     } catch {
       // Edges fail gracefully
@@ -371,22 +400,16 @@ export async function runDiscoveryEngine(
   }
 
   // Orbit 3: Your Crowd
-  // Spotify: co-occurring tracks from playlist mining
-  // Deezer: genre-based discovery (fallback since Deezer has no playlist search)
   if (playlistResult && playlistResult.length > 0) {
     const strongMatches = playlistResult.filter((co) => co.count >= 2);
     const toUse = strongMatches.length >= 5 ? strongMatches : playlistResult;
-    const { tracks, discovered } = await resolveCoOccurrencesToTracks(toUse, 25);
+    const { tracks, discovered } = await resolveCoOccurrencesToTracks(toUse, 30);
+    const padded = await padOrbitTracks(musicService, tracks, userGenres, userTrackIds);
     const confidence = Math.min(1, strongMatches.length / 15);
-    orbits.push(makeOrbit('crowd', tracks, discovered, confidence));
+    orbits.push(makeOrbit('crowd', padded, discovered, confidence));
   } else if (isDeezer) {
-    // Deezer fallback: build CROWD from genre search
     try {
-      const userGenres = [
-        ...allArtists.shortTerm.flatMap((a) => a.genres),
-        ...allArtists.mediumTerm.flatMap((a) => a.genres),
-      ];
-      const uniqueGenres = Array.from(new Set(userGenres)).slice(0, 5);
+      const uniqueGenres = userGenres.slice(0, 5);
       if (uniqueGenres.length > 0) {
         const crowdTracks = await musicService.discoverByGenres(uniqueGenres, userTrackIds, 25);
         if (crowdTracks.length > 0) {
@@ -400,31 +423,26 @@ export async function runDiscoveryEngine(
 
   // Orbit 4: Your Blindspot — High PageRank artists user never listened to
   if (wikidataResult && wikidataResult.blindspots.length > 0) {
-    const { tracks, discovered } = await resolveArtistsToTracks(musicService, wikidataResult.blindspots, 15);
+    const { tracks, discovered } = await resolveArtistsToTracks(musicService, wikidataResult.blindspots, 20);
+    const padded = await padOrbitTracks(musicService, tracks, userGenres, userTrackIds);
     const confidence = Math.min(1, wikidataResult.blindspots.length / 10);
-    orbits.push(makeOrbit('blindspot', tracks, discovered, confidence));
+    orbits.push(makeOrbit('blindspot', padded, discovered, confidence));
   }
 
   // Orbit 5: Deep Work — Instrumental/ambient versions of genres user likes
   try {
-    const userGenres = [
-      ...allArtists.shortTerm.flatMap((a) => a.genres),
-      ...allArtists.mediumTerm.flatMap((a) => a.genres),
-    ];
-    const uniqueGenres = Array.from(new Set(userGenres));
-
     const ambientTerms = ['instrumental', 'ambient', 'lo-fi', 'chillhop', 'study'];
-    const deepWorkQueries = uniqueGenres
-      .slice(0, 3)
+    const deepWorkQueries = userGenres
+      .slice(0, 4)
       .map(g => `${g} instrumental`)
-      .concat(ambientTerms.slice(0, 2));
+      .concat(ambientTerms);
 
     const dwTracks: MusicTrack[] = [];
     const seen = new Set<string>();
 
     for (const query of deepWorkQueries) {
-      if (dwTracks.length >= 15) break;
-      const results = await musicService.discoverByGenres([query], userTrackIds, 5);
+      if (dwTracks.length >= 20) break;
+      const results = await musicService.discoverByGenres([query], userTrackIds, 8);
       for (const t of results) {
         if (!seen.has(t.id)) {
           seen.add(t.id);
@@ -434,7 +452,8 @@ export async function runDiscoveryEngine(
     }
 
     if (dwTracks.length > 0) {
-      orbits.push(makeOrbit('deepwork', dwTracks, [], 0.5));
+      const padded = await padOrbitTracks(musicService, dwTracks, ['ambient', 'lo-fi', 'instrumental', 'chillhop'], userTrackIds);
+      orbits.push(makeOrbit('deepwork', padded, [], 0.5));
     }
   } catch {
     // Deep work fails gracefully
@@ -442,11 +461,7 @@ export async function runDiscoveryEngine(
 
   // Orbit 6: Wildcard — Random genre the user has never explored
   try {
-    const userGenreSet = new Set([
-      ...allArtists.shortTerm.flatMap((a) => a.genres),
-      ...allArtists.mediumTerm.flatMap((a) => a.genres),
-      ...allArtists.longTerm.flatMap((a) => a.genres),
-    ]);
+    const userGenreSet = new Set(userGenres);
 
     const wildcardGenres = [
       'afrobeats', 'bossa nova', 'k-pop', 'amapiano', 'reggaeton',
@@ -458,7 +473,7 @@ export async function runDiscoveryEngine(
     const unexplored = wildcardGenres.filter(g => !userGenreSet.has(g));
     const pick = unexplored[Math.floor(Math.random() * unexplored.length)] ?? 'world music';
 
-    const wcTracks = await musicService.discoverByGenres([pick], userTrackIds, 12);
+    const wcTracks = await musicService.discoverByGenres([pick], userTrackIds, 20);
 
     if (wcTracks.length > 0) {
       const wildcardOrbit = makeOrbit('wildcard', wcTracks, [], 0.4);
