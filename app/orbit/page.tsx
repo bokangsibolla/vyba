@@ -142,9 +142,10 @@ export default function OrbitPage() {
       setPlaylists(saved);
       setPhase('done');
 
-      // Send first dig email
+      // Send first dig email (only once)
       const email = localStorage.getItem('vyba_email');
-      if (email && saved.length > 0) {
+      const alreadySent = localStorage.getItem('vyba_first_dig_sent');
+      if (email && saved.length > 0 && !alreadySent) {
         try {
           let displayName = 'friend';
 
@@ -158,7 +159,7 @@ export default function OrbitPage() {
             }
           }
 
-          await fetch('/api/send-dig', {
+          const res = await fetch('/api/send-dig', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -172,6 +173,9 @@ export default function OrbitPage() {
               })),
             }),
           });
+          if (res.ok) {
+            localStorage.setItem('vyba_first_dig_sent', 'true');
+          }
         } catch {
           // Email send is non-blocking
         }
