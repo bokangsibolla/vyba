@@ -87,8 +87,7 @@ export class SpotifyService implements MusicService {
   }
 
   async createPlaylist(name: string, description: string, trackUris: string[]): Promise<string> {
-    const user = await this.fetch<{ id: string }>('/me');
-    const createRes = await fetch(`${BASE}/users/${user.id}/playlists`, {
+    const createRes = await fetch(`${BASE}/me/playlists`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${this.token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, description, public: false }),
