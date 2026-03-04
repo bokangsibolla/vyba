@@ -216,29 +216,40 @@ export async function runDiscoveryEngine(
   progress = updateProgress(progress, 0, 'loading');
   emit();
 
-  let shortTermTracks: MusicTrack[];
+  let allTracks: MusicTrack[];
   let allArtists: { shortTerm: MusicArtist[]; mediumTerm: MusicArtist[]; longTerm: MusicArtist[] };
   let userTrackIds: Set<string>;
   let userArtistIds: Set<string>;
 
   try {
-    const [tracks, artists] = await Promise.all([
+    const [shortTracks, mediumTracks, longTracks, artists] = await Promise.all([
       musicService.getTopTracks('short', 50),
+      musicService.getTopTracks('medium', 50),
+      musicService.getTopTracks('long', 50),
       musicService.getTopArtistsAllRanges(),
     ]);
 
-    shortTermTracks = tracks;
+    // Merge all tracks (prefer short > medium > long, dedup by id)
+    const seen = new Set<string>();
+    allTracks = [];
+    for (const t of [...shortTracks, ...mediumTracks, ...longTracks]) {
+      if (!seen.has(t.id)) {
+        seen.add(t.id);
+        allTracks.push(t);
+      }
+    }
+
     allArtists = artists;
 
     // Build user ID sets
-    userTrackIds = new Set(shortTermTracks.map((t) => t.id));
+    userTrackIds = new Set(allTracks.map((t) => t.id));
     userArtistIds = new Set([
       ...allArtists.shortTerm.map((a) => a.id),
       ...allArtists.mediumTerm.map((a) => a.id),
       ...allArtists.longTerm.map((a) => a.id),
     ]);
 
-    progress = updateProgress(progress, 0, 'done', `${shortTermTracks.length} tracks loaded`);
+    progress = updateProgress(progress, 0, 'done', `${allTracks.length} tracks loaded`);
     emit();
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to load listening data';
@@ -336,7 +347,7 @@ export async function runDiscoveryEngine(
       try {
         const coOccurrences = await minePlaylistCoOccurrences(
           musicService,
-          shortTermTracks,
+          allTracks,
           userTrackIds,
           30,
         );
@@ -582,17 +593,29 @@ export async function runDiscoveryEngine(
     }
   }
 
-  // Graceful degradation: if no orbits, create a single "Discover" via genre search
+  // Graceful degradation: if no orbits, build from direct searches
   if (orbits.length === 0) {
-    const allGenres = [
-      ...allArtists.shortTerm.flatMap((a) => a.genres),
-      ...allArtists.mediumTerm.flatMap((a) => a.genres),
+    const fallbackSearches = [
+      'top hits 2025', 'new music friday', 'indie discoveries',
+      'chill vibes', 'feel good songs', 'underground hits',
     ];
-    const uniqueGenres = Array.from(new Set(allGenres)).slice(0, 5);
 
     try {
-      const fallbackTracks = await musicService.discoverByGenres(uniqueGenres, userTrackIds, 30);
-      orbits.push(makeOrbit('edges', fallbackTracks, [], 0.3));
+      const fallbackTracks: MusicTrack[] = [];
+      const seen = new Set<string>();
+      for (const query of fallbackSearches) {
+        if (fallbackTracks.length >= 20) break;
+        const results = await musicService.searchTracks(query, 10);
+        for (const t of results) {
+          if (!seen.has(t.id)) {
+            seen.add(t.id);
+            fallbackTracks.push(t);
+          }
+        }
+      }
+      if (fallbackTracks.length > 0) {
+        orbits.push(makeOrbit('edges', fallbackTracks, [], 0.3));
+      }
     } catch {
       // Complete failure — return empty
     }
