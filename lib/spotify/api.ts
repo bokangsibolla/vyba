@@ -123,16 +123,23 @@ export async function createPlaylist(
 ): Promise<{ url: string; id: string }> {
   const user = await spotifyFetch<{ id: string }>(token, '/me');
 
-  const playlist = await fetch(`${BASE}/users/${user.id}/playlists`, {
+  const createRes = await fetch(`${BASE}/users/${user.id}/playlists`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({ name, description, public: false }),
-  }).then((r) => r.json());
+  });
 
-  await fetch(`${BASE}/playlists/${playlist.id}/items`, {
+  if (!createRes.ok) {
+    const errText = await createRes.text();
+    throw new Error(`Failed to create playlist (${createRes.status}): ${errText}`);
+  }
+
+  const playlist = await createRes.json();
+
+  const addRes = await fetch(`${BASE}/playlists/${playlist.id}/items`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -140,6 +147,11 @@ export async function createPlaylist(
     },
     body: JSON.stringify({ uris: trackUris }),
   });
+
+  if (!addRes.ok) {
+    const errText = await addRes.text();
+    throw new Error(`Failed to add tracks (${addRes.status}): ${errText}`);
+  }
 
   return { url: playlist.external_urls.spotify, id: playlist.id };
 }

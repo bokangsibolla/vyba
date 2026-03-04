@@ -72,6 +72,7 @@ export default function OrbitPage() {
 
     async function saveAll(orbits: DiscoveryOrbit[], tkn: string) {
       const saved: SavedPlaylist[] = [];
+      const errors: string[] = [];
 
       for (const orbit of orbits) {
         try {
@@ -92,9 +93,14 @@ export default function OrbitPage() {
               artist: t.artists.map((a) => a.name).join(', '),
             })),
           });
-        } catch {
-          // Continue with others
+        } catch (e) {
+          errors.push(`${orbit.label}: ${e instanceof Error ? e.message : 'Unknown error'}`);
         }
+      }
+
+      if (saved.length === 0 && errors.length > 0) {
+        setError(`Could not create playlists. ${errors[0]}`);
+        return;
       }
 
       setPlaylists(saved);
