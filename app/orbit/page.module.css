@@ -82,9 +82,23 @@
   font-weight: 400;
 }
 
+.trackEmbeds {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
 .embed {
   border: none;
   border-radius: 0;
+}
+
+.moreText {
+  font-family: 'Space Mono', monospace;
+  font-size: 11px;
+  color: #999;
+  letter-spacing: 0.04em;
+  padding: 8px 16px 12px;
 }
 
 .footer {
