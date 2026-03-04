@@ -3,12 +3,22 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { getStoredToken, logout } from '@/lib/spotify/auth';
+import { createPlaylist } from '@/lib/spotify/api';
 import { runDiscoveryEngine } from '@/lib/engine';
 import { EngineState, DiscoveryOrbit } from '@/lib/engine/types';
 import { sectionColors } from '@/lib/tokens';
 import DiscoveryLoading from '@/components/DiscoveryLoading';
 import Logo from '@/components/Logo';
 import styles from './page.module.css';
+
+interface SavedPlaylist {
+  orbitId: string;
+  label: string;
+  spotifyId: string;
+  url: string;
+  trackCount: number;
+  tracks: { name: string; artist: string; url: string }[];
+}
 
 export default function OrbitPage() {
   const router = useRouter();
@@ -18,6 +28,8 @@ export default function OrbitPage() {
     progress: [],
   });
   const [error, setError] = useState<string | null>(null);
+  const [playlists, setPlaylists] = useState<SavedPlaylist[]>([]);
+  const [phase, setPhase] = useState<'loading' | 'saving' | 'done'>('loading');
   const fetched = useRef(false);
 
   const handleProgress = useCallback((state: EngineState) => {
@@ -25,6 +37,7 @@ export default function OrbitPage() {
     if (state.error) setError(state.error);
   }, []);
 
+  // Step 1: Run discovery
   useEffect(() => {
     if (fetched.current) return;
     fetched.current = true;
@@ -39,47 +52,91 @@ export default function OrbitPage() {
       .then((orbits) => {
         if (orbits.length === 0) {
           setError('No listening data found. Listen to more music on Spotify and try again.');
-          return;
-        }
-
-        // Send first dig email with track links
-        const email = localStorage.getItem('vyba_email');
-        if (email) {
-          const sections = orbits
-            .filter((o) => o.status === 'ready' && o.tracks.length > 0)
-            .map((o) => ({
-              label: o.label,
-              spotifyUrl: o.tracks[0]?.external_urls.spotify ?? '',
-              trackCount: o.tracks.length,
-              tracks: o.tracks.map((t) => ({
-                name: t.name,
-                artist: t.artists.map((a) => a.name).join(', '),
-                url: t.external_urls.spotify,
-              })),
-            }));
-
-          fetch('https://api.spotify.com/v1/me', {
-            headers: { Authorization: `Bearer ${token}` },
-          })
-            .then((r) => r.json())
-            .then((me) => {
-              fetch('/api/send-dig', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  email,
-                  displayName: me.display_name || 'friend',
-                  playlists: sections,
-                }),
-              });
-            })
-            .catch(() => {});
         }
       })
       .catch((e) => {
         setError(e.message || 'Failed to load your music data');
       });
   }, [router, handleProgress]);
+
+  // Step 2: Auto-create playlists when discovery completes
+  useEffect(() => {
+    if (engineState.isLoading || phase !== 'loading') return;
+    const readyOrbits = engineState.orbits.filter((o) => o.status === 'ready' && o.tracks.length > 0);
+    if (readyOrbits.length === 0) return;
+
+    const token = getStoredToken();
+    if (!token) return;
+
+    setPhase('saving');
+
+    async function saveAll(orbits: DiscoveryOrbit[], tkn: string) {
+      const saved: SavedPlaylist[] = [];
+      const errors: string[] = [];
+
+      for (const orbit of orbits) {
+        try {
+          const result = await createPlaylist(
+            tkn,
+            `${orbit.label} · vyba`,
+            orbit.description,
+            orbit.tracks.map((t) => t.uri)
+          );
+          saved.push({
+            orbitId: orbit.id,
+            label: orbit.label,
+            spotifyId: result.id,
+            url: result.url,
+            trackCount: orbit.tracks.length,
+            tracks: orbit.tracks.map((t) => ({
+              name: t.name,
+              artist: t.artists.map((a) => a.name).join(', '),
+              url: t.external_urls.spotify,
+            })),
+          });
+        } catch (e) {
+          errors.push(`${orbit.label}: ${e instanceof Error ? e.message : 'Unknown error'}`);
+        }
+      }
+
+      if (saved.length === 0 && errors.length > 0) {
+        setError(`Could not create playlists. ${errors[0]}`);
+        return;
+      }
+
+      setPlaylists(saved);
+      setPhase('done');
+
+      // Send first dig email
+      const email = localStorage.getItem('vyba_email');
+      if (email && saved.length > 0) {
+        try {
+          const me = await fetch('https://api.spotify.com/v1/me', {
+            headers: { Authorization: `Bearer ${tkn}` },
+          }).then((r) => r.json());
+
+          await fetch('/api/send-dig', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              email,
+              displayName: me.display_name || 'friend',
+              playlists: saved.map((p) => ({
+                label: p.label,
+                spotifyUrl: p.url,
+                trackCount: p.trackCount,
+                tracks: p.tracks,
+              })),
+            }),
+          });
+        } catch {
+          // Email send is non-blocking
+        }
+      }
+    }
+
+    saveAll(readyOrbits, token);
+  }, [engineState.isLoading, engineState.orbits, phase]);
 
   if (error) {
     return (
@@ -94,6 +151,7 @@ export default function OrbitPage() {
               onClick={() => {
                 fetched.current = false;
                 setError(null);
+                setPhase('loading');
                 setEngineState({ orbits: [], isLoading: true, progress: [] });
               }}
             >
@@ -111,12 +169,11 @@ export default function OrbitPage() {
     );
   }
 
-  if (engineState.isLoading) {
+  if (phase !== 'done') {
     return <DiscoveryLoading />;
   }
 
-  const readyOrbits = engineState.orbits.filter((o) => o.status === 'ready' && o.tracks.length > 0);
-  const totalTracks = readyOrbits.reduce((sum, o) => sum + o.tracks.length, 0);
+  const totalTracks = playlists.reduce((sum, p) => sum + p.trackCount, 0);
 
   return (
     <main className={styles.main}>
@@ -130,42 +187,32 @@ export default function OrbitPage() {
       <div className={styles.hero}>
         <h1 className={styles.heroTitle}>You&apos;re in.</h1>
         <p className={styles.heroSub}>
-          {readyOrbits.length} sections, {totalTracks} tracks.
+          {playlists.length} playlists, {totalTracks} tracks added to your Spotify.
           Fresh ones every morning at 6am.
         </p>
       </div>
 
       <div className={styles.playlists}>
-        {readyOrbits.map((orbit) => {
-          const section = sectionColors[orbit.id as keyof typeof sectionColors];
+        {playlists.map((pl) => {
+          const section = sectionColors[pl.orbitId as keyof typeof sectionColors];
           return (
-            <div key={orbit.id} className={styles.playlistCard}>
+            <div key={pl.orbitId} className={styles.playlistCard}>
               <div
                 className={styles.playlistLabel}
                 style={{ background: section?.bg, color: section?.accent }}
               >
-                <span>{section?.label ?? orbit.label}</span>
-                <span className={styles.trackCount}>{orbit.tracks.length} tracks</span>
+                <span>{section?.label ?? pl.label}</span>
+                <span className={styles.trackCount}>{pl.trackCount} tracks</span>
               </div>
-              <div className={styles.trackEmbeds}>
-                {orbit.tracks.slice(0, 5).map((track) => (
-                  <iframe
-                    key={track.id}
-                    src={`https://open.spotify.com/embed/track/${track.id}?utm_source=generator&theme=0`}
-                    width="100%"
-                    height="80"
-                    frameBorder="0"
-                    allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-                    loading="lazy"
-                    className={styles.embed}
-                  />
-                ))}
-                {orbit.tracks.length > 5 && (
-                  <p className={styles.moreText}>
-                    + {orbit.tracks.length - 5} more in your email
-                  </p>
-                )}
-              </div>
+              <iframe
+                src={`https://open.spotify.com/embed/playlist/${pl.spotifyId}?utm_source=generator&theme=0`}
+                width="100%"
+                height="352"
+                frameBorder="0"
+                allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+                loading="lazy"
+                className={styles.embed}
+              />
             </div>
           );
         })}

@@ -68,6 +68,11 @@ function buildEmailHtml(name: string, playlists: PlaylistSection[]): string {
               <table cellpadding="0" cellspacing="0" border="0" width="100%">${trackRows}</table>
             </td>
           </tr>
+          ${pl.spotifyUrl ? `<tr>
+            <td style="padding:0 16px 14px;">
+              <a href="${pl.spotifyUrl}" style="display:inline-block;font-family:Courier,monospace;font-size:12px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#FFFDF5;background:#111;padding:10px 20px;border-radius:6px;text-decoration:none;">Open playlist in Spotify</a>
+            </td>
+          </tr>` : ''}
         </table>
       </div>`;
   }).join('');

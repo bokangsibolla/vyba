@@ -32,9 +32,9 @@ export default function DebugPage() {
         lines.push(`Product: ${me.product}`);
         lines.push('');
 
-        // Test playlist creation
+        // Test playlist creation (new endpoint: POST /me/playlists)
         const createRes = await fetch(
-          `https://api.spotify.com/v1/users/${me.id}/playlists`,
+          `https://api.spotify.com/v1/me/playlists`,
           {
             method: 'POST',
             headers: {

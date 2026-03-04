@@ -121,9 +121,7 @@ export async function createPlaylist(
   description: string,
   trackUris: string[]
 ): Promise<{ url: string; id: string }> {
-  const user = await spotifyFetch<{ id: string }>(token, '/me');
-
-  const createRes = await fetch(`${BASE}/users/${user.id}/playlists`, {
+  const createRes = await fetch(`${BASE}/me/playlists`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
