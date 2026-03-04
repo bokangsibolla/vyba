@@ -274,6 +274,14 @@ export default function OrbitPage() {
                 loading="lazy"
                 className={styles.embed}
               />
+              <a
+                href={pl.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={styles.openLink}
+              >
+                Open in {pl.service === 'deezer' ? 'Deezer' : 'Spotify'}
+              </a>
             </div>
           );
         })}
