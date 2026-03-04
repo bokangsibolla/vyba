@@ -76,7 +76,7 @@ function makeOrbit(
     tracks,
     artists,
     confidence: Math.min(1, Math.max(0, confidence)),
-    status: dedupedTracks.length > 0 ? 'ready' : 'error',
+    status: tracks.length > 0 ? 'ready' : 'error',
   };
 }
 
