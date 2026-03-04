@@ -1,4 +1,5 @@
-import { SpotifyTrack } from '@/lib/spotify/types';
+import { MusicTrack, MusicService } from '@/lib/music/types';
+import { SpotifyService } from '@/lib/music/spotify';
 import { searchPlaylistsForTrack, getPlaylistTracks } from '@/lib/spotify/api';
 import { CoOccurrence } from './types';
 import { getCached, setCache, CACHE_TTL, getCacheKey } from './cache';
@@ -7,12 +8,19 @@ async function delay(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+/**
+ * Mine playlist co-occurrences. Only works for Spotify users (requires playlist search API).
+ * The engine skips this for Deezer users entirely.
+ */
 export async function minePlaylistCoOccurrences(
-  token: string,
-  seedTracks: SpotifyTrack[],
+  musicService: MusicService,
+  seedTracks: MusicTrack[],
   userTrackIds: Set<string>,
   maxPlaylists = 30
 ): Promise<CoOccurrence[]> {
+  // This only works with Spotify — Deezer has no playlist search API
+  if (musicService.service !== 'spotify') return [];
+
   // Check cache first
   const cacheKey = getCacheKey(
     'playlist_mining',
@@ -20,6 +28,9 @@ export async function minePlaylistCoOccurrences(
   );
   const cached = getCached<CoOccurrence[]>(cacheKey);
   if (cached) return cached;
+
+  const token = (musicService as SpotifyService).token;
+  if (!token) return [];
 
   // Take the first 10 seed tracks
   const seeds = seedTracks.slice(0, 10);
@@ -31,7 +42,7 @@ export async function minePlaylistCoOccurrences(
   for (const seed of seeds) {
     if (playlistIds.size >= maxPlaylists) break;
 
-    const artistName = seed.artists[0]?.name ?? 'Unknown';
+    const artistName = seed.artist ?? 'Unknown';
     const playlists = await searchPlaylistsForTrack(
       token,
       seed.name,
@@ -52,7 +63,11 @@ export async function minePlaylistCoOccurrences(
   const coOccurrenceMap = new Map<
     string,
     {
-      track: SpotifyTrack;
+      trackId: string;
+      trackName: string;
+      artistName: string;
+      trackUri: string;
+      albumImageUrl?: string;
       count: number;
       sourcePlaylistIds: Set<string>;
     }
@@ -70,7 +85,6 @@ export async function minePlaylistCoOccurrences(
       const tracks = batchResults[b];
 
       for (const track of tracks) {
-        // Skip tracks the user already has
         if (userTrackIds.has(track.id)) continue;
 
         const existing = coOccurrenceMap.get(track.id);
@@ -81,7 +95,11 @@ export async function minePlaylistCoOccurrences(
           const sourcePlaylistIds = new Set<string>();
           sourcePlaylistIds.add(playlistId);
           coOccurrenceMap.set(track.id, {
-            track,
+            trackId: track.id,
+            trackName: track.name,
+            artistName: track.artists[0]?.name ?? 'Unknown',
+            trackUri: track.uri,
+            albumImageUrl: track.album.images[0]?.url,
             count: 1,
             sourcePlaylistIds,
           });
@@ -89,7 +107,6 @@ export async function minePlaylistCoOccurrences(
       }
     }
 
-    // Delay between batches to avoid rate limiting
     if (i + 5 < playlistQueue.length) {
       await delay(100);
     }
@@ -97,21 +114,19 @@ export async function minePlaylistCoOccurrences(
 
   // Convert map to CoOccurrence array
   const results: CoOccurrence[] = Array.from(coOccurrenceMap.values()).map(
-    ({ track, count, sourcePlaylistIds }) => ({
-      trackId: track.id,
-      trackName: track.name,
-      artistName: track.artists[0]?.name ?? 'Unknown',
-      trackUri: track.uri,
-      albumImageUrl: track.album.images[0]?.url,
+    ({ trackId, trackName, artistName, trackUri, albumImageUrl, count, sourcePlaylistIds }) => ({
+      trackId,
+      trackName,
+      artistName,
+      trackUri,
+      albumImageUrl,
       count,
       sourcePlaylistCount: sourcePlaylistIds.size,
     })
   );
 
-  // Sort by count descending
   results.sort((a, b) => b.count - a.count);
 
-  // Cache results
   setCache(cacheKey, results, CACHE_TTL.playlistMining);
 
   return results;

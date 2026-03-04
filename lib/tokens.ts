@@ -1,13 +1,15 @@
-// === 90s Hip-Hop Zine Design Tokens ===
+// === Cassette Futurism Design Tokens ===
 
 export const colors = {
-  bg: '#FFFDF5',
-  surface: '#FFF8EA',
-  text: '#111111',
-  textMuted: '#6B6B6B',
-  accent: '#FF4D00',
-  border: '#E5DDD0',
-  success: '#2D8B4E',
+  bg: '#1A1714',
+  bgCard: '#252119',
+  surface: '#2F2A22',
+  text: '#F0DFC8',
+  textMuted: '#8A7E6E',
+  accent: '#E8622B',
+  accentGold: '#D4A853',
+  border: '#3D362C',
+  success: '#7A9B5A',
 } as const;
 
 export const fonts = {
@@ -25,12 +27,12 @@ export const radius = {
 } as const;
 
 export const sectionColors = {
-  roots:     { bg: '#F5EDE4', accent: '#8B6914', label: 'ROOTS' },
-  edges:     { bg: '#E8F0E4', accent: '#3D6B2E', label: 'EDGES' },
-  crowd:     { bg: '#FCE8D8', accent: '#B5541A', label: 'CROWD' },
-  blindspot: { bg: '#E4ECF5', accent: '#2E4A6B', label: 'BLINDSPOT' },
-  deepwork:  { bg: '#EDEBE8', accent: '#555555', label: 'DEEP WORK' },
-  wildcard:  { bg: '#F5E4EE', accent: '#8B1454', label: 'WILDCARD' },
+  roots:     { bg: '#3A2E1A', accent: '#D4A853', label: 'ROOTS' },
+  edges:     { bg: '#1E2E1A', accent: '#7A9B5A', label: 'EDGES' },
+  crowd:     { bg: '#3A2218', accent: '#E8622B', label: 'CROWD' },
+  blindspot: { bg: '#1A2A30', accent: '#5A9B9B', label: 'BLINDSPOT' },
+  deepwork:  { bg: '#26252A', accent: '#8A8494', label: 'DEEP WORK' },
+  wildcard:  { bg: '#30192A', accent: '#C45A8A', label: 'WILDCARD' },
 } as const;
 
 export type SectionId = keyof typeof sectionColors;

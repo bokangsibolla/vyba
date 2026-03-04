@@ -33,8 +33,32 @@ export class DeezerService implements MusicService {
     return (data.data ?? []).map(toMusicTrack);
   }
 
+  async getTopArtistsAllRanges(): Promise<{ shortTerm: MusicArtist[]; mediumTerm: MusicArtist[]; longTerm: MusicArtist[] }> {
+    // Deezer doesn't support time ranges — return same list for all three
+    const artists = await this.getTopArtists('short');
+    return { shortTerm: artists, mediumTerm: artists, longTerm: artists };
+  }
+
   async searchTracksByArtist(artistName: string, limit = 5): Promise<MusicTrack[]> {
     return this.searchTracks(`artist:"${artistName}"`, limit);
+  }
+
+  async discoverByGenres(genres: string[], excludeIds: Set<string>, limit = 30): Promise<MusicTrack[]> {
+    const results: MusicTrack[] = [];
+    const seen = new Set<string>();
+
+    for (const genre of genres.slice(0, 5)) {
+      if (results.length >= limit) break;
+      const tracks = await this.searchTracks(genre, 10);
+      for (const track of tracks) {
+        if (!seen.has(track.id) && !excludeIds.has(track.id)) {
+          seen.add(track.id);
+          results.push(track);
+        }
+      }
+    }
+
+    return results.slice(0, limit);
   }
 
   async createPlaylist(name: string, _description: string, trackUris: string[]): Promise<string> {

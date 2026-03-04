@@ -13,7 +13,7 @@ interface Props {
 
 function AlbumMosaic({ orbit }: { orbit: DiscoveryOrbit }) {
   const images = orbit.tracks
-    .map((t) => t.album.images[0]?.url)
+    .map((t) => t.imageUrl)
     .filter(Boolean)
     .slice(0, 4);
 
@@ -64,15 +64,15 @@ export default function PlaylistCard({ orbit, savedUrl }: Props) {
               {orbit.tracks.map((track, i) => (
                 <a
                   key={track.id}
-                  href={track.external_urls.spotify}
+                  href={track.externalUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className={styles.trackRow}
                 >
                   <span className={styles.trackNum}>{String(i + 1).padStart(2, '0')}</span>
-                  {track.album.images.length > 0 && (
+                  {track.imageUrl && (
                     <img
-                      src={track.album.images[track.album.images.length - 1]?.url}
+                      src={track.imageUrl}
                       alt=""
                       className={styles.trackImg}
                     />
@@ -80,7 +80,7 @@ export default function PlaylistCard({ orbit, savedUrl }: Props) {
                   <div className={styles.trackInfo}>
                     <span className={styles.trackName}>{track.name}</span>
                     <span className={styles.trackArtist}>
-                      {track.artists.map((a) => a.name).join(', ')}
+                      {track.artist}
                     </span>
                   </div>
                 </a>

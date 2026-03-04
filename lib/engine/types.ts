@@ -1,4 +1,4 @@
-import { SpotifyTrack, SpotifyArtist } from '@/lib/spotify/types';
+import { MusicTrack, MusicArtist } from '@/lib/music/types';
 
 // --- Discovery & Influence Graph ---
 
@@ -42,8 +42,8 @@ export interface CoOccurrence {
 // --- Taste Frontier ---
 
 export interface TasteFrontier {
-  shortTermOnly: SpotifyArtist[];
-  longTermOnly: SpotifyArtist[];
+  shortTermOnly: MusicArtist[];
+  longTermOnly: MusicArtist[];
   frontierGenres: string[];
   coreGenres: string[];
   evolving: boolean;
@@ -62,7 +62,7 @@ export interface DiscoveryOrbit {
     from: string;
     to: string;
   };
-  tracks: SpotifyTrack[];
+  tracks: MusicTrack[];
   artists: DiscoveredArtist[];
   /** Confidence score between 0 and 1 */
   confidence: number;

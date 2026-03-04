@@ -1,0 +1,120 @@
+.main {
+  min-height: 100dvh;
+  padding: 24px;
+  padding-top: env(safe-area-inset-top, 24px);
+  padding-bottom: 64px;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 40px;
+}
+
+.backBtn {
+  background: none;
+  border: none;
+  font-family: 'Space Mono', monospace;
+  font-size: 11px;
+  color: #8A7E6E;
+  cursor: pointer;
+  padding: 8px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  transition: color 0.15s ease;
+}
+
+.backBtn:hover {
+  color: #F0DFC8;
+}
+
+.title {
+  font-family: 'Instrument Serif', serif;
+  font-size: 32px;
+  font-weight: 400;
+  color: #F0DFC8;
+  line-height: 1.1;
+  margin-bottom: 32px;
+}
+
+.section {
+  margin-bottom: 32px;
+}
+
+.label {
+  font-family: 'Space Mono', monospace;
+  font-size: 10px;
+  color: #8A7E6E;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.value {
+  font-family: 'Space Mono', monospace;
+  font-size: 14px;
+  color: #F0DFC8;
+  letter-spacing: 0.02em;
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 40px;
+}
+
+.actionBtn {
+  width: 100%;
+  padding: 14px 24px;
+  background: none;
+  border: 2px solid #3D362C;
+  border-radius: 8px;
+  font-family: 'Space Mono', monospace;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #F0DFC8;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: left;
+}
+
+.actionBtn:hover {
+  border-color: #8A7E6E;
+}
+
+.actionBtnDesc {
+  display: block;
+  font-weight: 400;
+  font-size: 11px;
+  color: #8A7E6E;
+  text-transform: none;
+  letter-spacing: 0.02em;
+  margin-top: 4px;
+}
+
+.dangerBtn {
+  composes: actionBtn;
+  border-color: #4A2020;
+  color: #E85D5D;
+}
+
+.dangerBtn:hover {
+  border-color: #E85D5D;
+}
+
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 60dvh;
+  font-family: 'Space Mono', monospace;
+  font-size: 12px;
+  color: #8A7E6E;
+  letter-spacing: 0.04em;
+}

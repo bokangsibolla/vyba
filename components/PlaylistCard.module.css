@@ -1,13 +1,13 @@
 .card {
-  border: 2px solid #E5DDD0;
+  border: 2px solid #3D362C;
   border-radius: 12px;
   overflow: hidden;
-  background: #FFFDF5;
+  background: #252119;
   transition: border-color 0.15s ease;
 }
 
 .card:hover {
-  border-color: #111111;
+  border-color: #5A5347;
 }
 
 .sectionBar {
@@ -49,7 +49,7 @@
   grid-template-columns: 1fr 1fr;
   grid-template-rows: 1fr 1fr;
   flex-shrink: 0;
-  border: 1px solid #E5DDD0;
+  border: 1px solid #3D362C;
 }
 
 .mosaicImg {
@@ -61,7 +61,7 @@
 .mosaicPlaceholder {
   width: 100%;
   height: 100%;
-  background: #F0EBE3;
+  background: #2F2A22;
 }
 
 .headerInfo {
@@ -73,20 +73,20 @@
   font-family: 'Inter', sans-serif;
   font-size: 14px;
   font-weight: 500;
-  color: #111111;
+  color: #F0DFC8;
 }
 
 .orbitDesc {
   font-family: 'Inter', sans-serif;
   font-size: 12px;
-  color: #6B6B6B;
+  color: #8A7E6E;
   margin-top: 2px;
   line-height: 1.3;
 }
 
 .expandIcon {
   font-size: 10px;
-  color: #B5AFA5;
+  color: #5A5347;
   flex-shrink: 0;
   transition: transform 0.2s ease;
 }
@@ -99,7 +99,7 @@
   padding: 0 16px 16px;
   display: flex;
   flex-direction: column;
-  border-top: 1px solid #E5DDD0;
+  border-top: 1px solid #3D362C;
 }
 
 .trackRow {
@@ -110,7 +110,7 @@
   text-decoration: none;
   color: inherit;
   transition: opacity 0.15s ease;
-  border-bottom: 1px solid #F0EBE3;
+  border-bottom: 1px solid #2F2A22;
 }
 
 .trackRow:last-child {
@@ -124,7 +124,7 @@
 .trackNum {
   font-family: 'Space Mono', monospace;
   font-size: 11px;
-  color: #B5AFA5;
+  color: #5A5347;
   width: 22px;
   text-align: right;
   flex-shrink: 0;
@@ -149,7 +149,7 @@
   font-family: 'Inter', sans-serif;
   font-size: 13px;
   font-weight: 500;
-  color: #111111;
+  color: #F0DFC8;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -158,7 +158,7 @@
 .trackArtist {
   font-family: 'Inter', sans-serif;
   font-size: 11px;
-  color: #6B6B6B;
+  color: #8A7E6E;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -170,14 +170,14 @@
   justify-content: center;
   gap: 8px;
   padding: 10px 16px;
-  border-top: 1px solid #E5DDD0;
+  border-top: 1px solid #3D362C;
 }
 
 .openLink {
   font-family: 'Space Mono', monospace;
   font-size: 12px;
   font-weight: 700;
-  color: #2D8B4E;
+  color: #7A9B5A;
   text-decoration: none;
   letter-spacing: 0.02em;
   transition: opacity 0.15s ease;
@@ -189,5 +189,5 @@
 
 .checkmark {
   font-size: 12px;
-  color: #2D8B4E;
+  color: #7A9B5A;
 }

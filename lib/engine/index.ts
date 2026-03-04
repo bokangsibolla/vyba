@@ -1,10 +1,4 @@
-import { SpotifyTrack, SpotifyArtist } from '@/lib/spotify/types';
-import {
-  getTopTracks,
-  getAllTimeRangeArtists,
-  searchTracksByArtist,
-  discoverByGenres,
-} from '@/lib/spotify/api';
+import { MusicService, MusicTrack, MusicArtist } from '@/lib/music/types';
 import { sectionColors, sectionMeta } from '@/lib/tokens';
 import {
   DiscoveryOrbit,
@@ -17,7 +11,7 @@ import {
   TasteFrontier,
   DiscoveredArtist,
 } from './types';
-import { findWikidataIdsBySpotifyIds, getInfluences } from './wikidata';
+import { findWikidataIdsBySpotifyIds, findWikidataIdsByNames, getInfluences } from './wikidata';
 import { getBlindspots } from './pagerank';
 import { minePlaylistCoOccurrences } from './playlistMining';
 import { detectTasteFrontier, getEmergingGenres } from './frontier';
@@ -35,10 +29,10 @@ const FRONTIER_BOOST = 1.5;
 // --- Helpers ---
 
 /** Keep only one track per artist within a playlist */
-function dedupeByArtist(tracks: SpotifyTrack[]): SpotifyTrack[] {
+function dedupeByArtist(tracks: MusicTrack[]): MusicTrack[] {
   const seen = new Set<string>();
   return tracks.filter((t) => {
-    const key = t.artists[0]?.name?.toLowerCase() ?? t.id;
+    const key = t.artist?.toLowerCase() ?? t.id;
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
@@ -47,7 +41,7 @@ function dedupeByArtist(tracks: SpotifyTrack[]): SpotifyTrack[] {
 
 function makeOrbit(
   id: OrbitId,
-  tracks: SpotifyTrack[],
+  tracks: MusicTrack[],
   artists: DiscoveredArtist[],
   confidence: number,
 ): DiscoveryOrbit {
@@ -86,20 +80,20 @@ function updateProgress(
   );
 }
 
-// --- Resolve artists to Spotify tracks ---
+// --- Resolve artists to tracks via MusicService ---
 
 async function resolveArtistsToTracks(
-  token: string,
+  musicService: MusicService,
   artists: ArtistNode[],
   limit: number,
-): Promise<{ tracks: SpotifyTrack[]; discovered: DiscoveredArtist[] }> {
-  const tracks: SpotifyTrack[] = [];
+): Promise<{ tracks: MusicTrack[]; discovered: DiscoveredArtist[] }> {
+  const tracks: MusicTrack[] = [];
   const discovered: DiscoveredArtist[] = [];
   const seen = new Set<string>();
 
   for (const artist of artists.slice(0, limit)) {
     try {
-      const results = await searchTracksByArtist(token, artist.name, 3);
+      const results = await musicService.searchTracksByArtist(artist.name, 3);
       for (const track of results) {
         if (!seen.has(track.id)) {
           seen.add(track.id);
@@ -124,23 +118,22 @@ async function resolveArtistsToTracks(
 async function resolveCoOccurrencesToTracks(
   coOccurrences: CoOccurrence[],
   limit: number,
-): Promise<{ tracks: SpotifyTrack[]; discovered: DiscoveredArtist[] }> {
-  const tracks: SpotifyTrack[] = [];
+): Promise<{ tracks: MusicTrack[]; discovered: DiscoveredArtist[] }> {
+  const tracks: MusicTrack[] = [];
   const discovered: DiscoveredArtist[] = [];
 
   for (const co of coOccurrences.slice(0, limit)) {
     tracks.push({
       id: co.trackId,
       name: co.trackName,
-      artists: [{ id: '', name: co.artistName }],
-      album: {
-        id: '',
-        name: '',
-        images: co.albumImageUrl ? [{ url: co.albumImageUrl, width: 300, height: 300 }] : [],
-      },
+      artist: co.artistName,
+      artistId: '',
+      album: '',
+      albumId: '',
+      imageUrl: co.albumImageUrl ?? '',
+      externalUrl: `https://open.spotify.com/track/${co.trackId}`,
       uri: co.trackUri,
-      preview_url: null,
-      external_urls: { spotify: `https://open.spotify.com/track/${co.trackId}` },
+      service: 'spotify',
     });
     discovered.push({
       spotifyId: '',
@@ -156,7 +149,7 @@ async function resolveCoOccurrencesToTracks(
 // --- Main engine ---
 
 export async function runDiscoveryEngine(
-  token: string,
+  musicService: MusicService,
   onProgress: (state: EngineState) => void,
 ): Promise<DiscoveryOrbit[]> {
   let progress = initialProgress();
@@ -171,19 +164,19 @@ export async function runDiscoveryEngine(
 
   emit();
 
-  // Phase 1: Fetch Spotify data
+  // Phase 1: Fetch listening data
   progress = updateProgress(progress, 0, 'loading');
   emit();
 
-  let shortTermTracks: SpotifyTrack[];
-  let allArtists: { shortTerm: SpotifyArtist[]; mediumTerm: SpotifyArtist[]; longTerm: SpotifyArtist[] };
+  let shortTermTracks: MusicTrack[];
+  let allArtists: { shortTerm: MusicArtist[]; mediumTerm: MusicArtist[]; longTerm: MusicArtist[] };
   let userTrackIds: Set<string>;
   let userArtistIds: Set<string>;
 
   try {
     const [tracks, artists] = await Promise.all([
-      getTopTracks(token, 'short_term', 50),
-      getAllTimeRangeArtists(token),
+      musicService.getTopTracks('short', 50),
+      musicService.getTopArtistsAllRanges(),
     ]);
 
     shortTermTracks = tracks;
@@ -206,31 +199,46 @@ export async function runDiscoveryEngine(
     return [];
   }
 
-  // Phase 2: Run 3 signals in parallel
+  // Phase 2: Run signals in parallel
   progress = updateProgress(progress, 1, 'loading');
   progress = updateProgress(progress, 2, 'loading');
   progress = updateProgress(progress, 3, 'loading');
   emit();
 
-  // Signal results — collected via return values to avoid closure narrowing issues
   interface WikidataResult {
     edges: InfluenceEdge[];
     blindspots: ArtistNode[];
     rootArtists: ArtistNode[];
   }
 
+  const isDeezer = musicService.service === 'deezer';
+
   const [wikidataResult, playlistResult, frontierResult] = await Promise.all([
     // Signal 1: Wikidata influences
     (async (): Promise<WikidataResult | null> => {
       try {
-        const allSpotifyArtistIds = [
+        const allArtistIds = [
           ...allArtists.shortTerm.map((a) => a.id),
           ...allArtists.mediumTerm.map((a) => a.id),
           ...allArtists.longTerm.map((a) => a.id),
         ];
-        const uniqueIds = Array.from(new Set(allSpotifyArtistIds));
+        const uniqueIds = Array.from(new Set(allArtistIds));
 
-        const wikidataMap = await findWikidataIdsBySpotifyIds(uniqueIds);
+        // Spotify: use Spotify IDs for precise matching
+        // Deezer: use artist names for label-based matching
+        let wikidataMap: Map<string, string>;
+        if (isDeezer) {
+          const allNames = [
+            ...allArtists.shortTerm.map((a) => a.name),
+            ...allArtists.mediumTerm.map((a) => a.name),
+            ...allArtists.longTerm.map((a) => a.name),
+          ];
+          const uniqueNames = Array.from(new Set(allNames));
+          wikidataMap = await findWikidataIdsByNames(uniqueNames);
+        } else {
+          wikidataMap = await findWikidataIdsBySpotifyIds(uniqueIds);
+        }
+
         const wikidataIds = Array.from(wikidataMap.values());
 
         if (wikidataIds.length === 0) {
@@ -270,11 +278,16 @@ export async function runDiscoveryEngine(
       }
     })(),
 
-    // Signal 2: Playlist co-occurrence
+    // Signal 2: Playlist co-occurrence (Spotify only — Deezer has no playlist search API)
     (async (): Promise<CoOccurrence[] | null> => {
+      if (isDeezer) {
+        progress = updateProgress(progress, 2, 'done', 'Using genre search');
+        emit();
+        return null;
+      }
       try {
         const coOccurrences = await minePlaylistCoOccurrences(
-          token,
+          musicService,
           shortTermTracks,
           userTrackIds,
           30,
@@ -290,7 +303,7 @@ export async function runDiscoveryEngine(
       }
     })(),
 
-    // Signal 3: Taste frontier (synchronous, wrapped in async)
+    // Signal 3: Taste frontier
     (async (): Promise<TasteFrontier | null> => {
       try {
         const frontier = detectTasteFrontier(
@@ -319,7 +332,7 @@ export async function runDiscoveryEngine(
 
   // Orbit 1: Your Roots — Artists who influenced user's favorites
   if (wikidataResult && wikidataResult.rootArtists.length > 0) {
-    const { tracks, discovered } = await resolveArtistsToTracks(token, wikidataResult.rootArtists, 15);
+    const { tracks, discovered } = await resolveArtistsToTracks(musicService, wikidataResult.rootArtists, 15);
     const confidence = Math.min(1, wikidataResult.rootArtists.length / 10);
     orbits.push(makeOrbit('roots', tracks, discovered, confidence));
   }
@@ -327,14 +340,13 @@ export async function runDiscoveryEngine(
   // Orbit 2: Your Edges — Top tracks from frontier artists (new interests)
   if (frontierResult && frontierResult.shortTermOnly.length > 0) {
     try {
-      const edgeTracks: SpotifyTrack[] = [];
+      const edgeTracks: MusicTrack[] = [];
       const edgeArtists: DiscoveredArtist[] = [];
       const seen = new Set<string>();
 
-      // Get top tracks from each frontier artist (artists user recently discovered)
       const frontierArtists = frontierResult.shortTermOnly.slice(0, 8);
       for (const artist of frontierArtists) {
-        const tracks = await searchTracksByArtist(token, artist.name, 4);
+        const tracks = await musicService.searchTracksByArtist(artist.name, 4);
         for (const track of tracks) {
           if (!seen.has(track.id) && !userTrackIds.has(track.id)) {
             seen.add(track.id);
@@ -358,18 +370,37 @@ export async function runDiscoveryEngine(
     }
   }
 
-  // Orbit 3: Your Crowd — Co-occurring tracks from playlist mining (2+ playlists = signal, not noise)
+  // Orbit 3: Your Crowd
+  // Spotify: co-occurring tracks from playlist mining
+  // Deezer: genre-based discovery (fallback since Deezer has no playlist search)
   if (playlistResult && playlistResult.length > 0) {
     const strongMatches = playlistResult.filter((co) => co.count >= 2);
     const toUse = strongMatches.length >= 5 ? strongMatches : playlistResult;
     const { tracks, discovered } = await resolveCoOccurrencesToTracks(toUse, 25);
     const confidence = Math.min(1, strongMatches.length / 15);
     orbits.push(makeOrbit('crowd', tracks, discovered, confidence));
+  } else if (isDeezer) {
+    // Deezer fallback: build CROWD from genre search
+    try {
+      const userGenres = [
+        ...allArtists.shortTerm.flatMap((a) => a.genres),
+        ...allArtists.mediumTerm.flatMap((a) => a.genres),
+      ];
+      const uniqueGenres = Array.from(new Set(userGenres)).slice(0, 5);
+      if (uniqueGenres.length > 0) {
+        const crowdTracks = await musicService.discoverByGenres(uniqueGenres, userTrackIds, 25);
+        if (crowdTracks.length > 0) {
+          orbits.push(makeOrbit('crowd', crowdTracks, [], 0.4));
+        }
+      }
+    } catch {
+      // Crowd fails gracefully for Deezer
+    }
   }
 
   // Orbit 4: Your Blindspot — High PageRank artists user never listened to
   if (wikidataResult && wikidataResult.blindspots.length > 0) {
-    const { tracks, discovered } = await resolveArtistsToTracks(token, wikidataResult.blindspots, 15);
+    const { tracks, discovered } = await resolveArtistsToTracks(musicService, wikidataResult.blindspots, 15);
     const confidence = Math.min(1, wikidataResult.blindspots.length / 10);
     orbits.push(makeOrbit('blindspot', tracks, discovered, confidence));
   }
@@ -388,12 +419,12 @@ export async function runDiscoveryEngine(
       .map(g => `${g} instrumental`)
       .concat(ambientTerms.slice(0, 2));
 
-    const dwTracks: SpotifyTrack[] = [];
+    const dwTracks: MusicTrack[] = [];
     const seen = new Set<string>();
 
     for (const query of deepWorkQueries) {
       if (dwTracks.length >= 15) break;
-      const results = await discoverByGenres(token, [query], userTrackIds, 5);
+      const results = await musicService.discoverByGenres([query], userTrackIds, 5);
       for (const t of results) {
         if (!seen.has(t.id)) {
           seen.add(t.id);
@@ -427,7 +458,7 @@ export async function runDiscoveryEngine(
     const unexplored = wildcardGenres.filter(g => !userGenreSet.has(g));
     const pick = unexplored[Math.floor(Math.random() * unexplored.length)] ?? 'world music';
 
-    const wcTracks = await discoverByGenres(token, [pick], userTrackIds, 12);
+    const wcTracks = await musicService.discoverByGenres([pick], userTrackIds, 12);
 
     if (wcTracks.length > 0) {
       const wildcardOrbit = makeOrbit('wildcard', wcTracks, [], 0.4);
@@ -447,7 +478,7 @@ export async function runDiscoveryEngine(
     const uniqueGenres = Array.from(new Set(allGenres)).slice(0, 5);
 
     try {
-      const fallbackTracks = await discoverByGenres(token, uniqueGenres, userTrackIds, 30);
+      const fallbackTracks = await musicService.discoverByGenres(uniqueGenres, userTrackIds, 30);
       orbits.push(makeOrbit('edges', fallbackTracks, [], 0.3));
     } catch {
       // Complete failure — return empty

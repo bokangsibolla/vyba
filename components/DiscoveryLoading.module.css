@@ -12,7 +12,7 @@
   font-family: 'Space Mono', monospace;
   font-size: 28px;
   font-weight: 700;
-  color: #111111;
+  color: #E8622B;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -20,6 +20,6 @@
 .subtitle {
   font-family: 'Space Mono', monospace;
   font-size: 12px;
-  color: #999;
+  color: #8A7E6E;
   letter-spacing: 0.04em;
 }

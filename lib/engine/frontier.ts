@@ -1,4 +1,4 @@
-import { SpotifyArtist } from '@/lib/spotify/types';
+import { MusicArtist } from '@/lib/music/types';
 import { TasteFrontier } from './types';
 
 /**
@@ -10,9 +10,9 @@ import { TasteFrontier } from './types';
  * profile as actively evolving.
  */
 export function detectTasteFrontier(
-  shortTermArtists: SpotifyArtist[],
-  mediumTermArtists: SpotifyArtist[],
-  longTermArtists: SpotifyArtist[]
+  shortTermArtists: MusicArtist[],
+  mediumTermArtists: MusicArtist[],
+  longTermArtists: MusicArtist[]
 ): TasteFrontier {
   // Build ID sets for each time range
   const shortTermIds = new Set(shortTermArtists.map((a) => a.id));

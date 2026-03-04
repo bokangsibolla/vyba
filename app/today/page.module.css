@@ -8,14 +8,14 @@
 .header {
   margin-bottom: 24px;
   padding-bottom: 16px;
-  border-bottom: 2px solid #111111;
+  border-bottom: 2px solid #3D362C;
 }
 
 .issueLine {
   font-family: 'Space Mono', monospace;
   font-size: 11px;
   font-weight: 700;
-  color: #FF4D00;
+  color: #E8622B;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   margin-top: 8px;
@@ -24,7 +24,7 @@
 .djIntro {
   font-family: 'Inter', sans-serif;
   font-size: 15px;
-  color: #111111;
+  color: #F0DFC8;
   line-height: 1.6;
   margin: 24px 0;
 }
@@ -32,11 +32,11 @@
 .teaser {
   font-family: 'Inter', sans-serif;
   font-size: 14px;
-  color: #6B6B6B;
+  color: #8A7E6E;
   font-style: italic;
   line-height: 1.5;
   padding: 16px;
-  border: 1px dashed #E5DDD0;
+  border: 1px dashed #3D362C;
   border-radius: 8px;
   margin: 24px 0;
   text-align: center;
@@ -56,11 +56,11 @@
   font-family: 'Space Mono', monospace;
   font-size: 16px;
   font-weight: 700;
-  color: #111111;
+  color: #F0DFC8;
 }
 
 .emptyDesc {
   font-family: 'Inter', sans-serif;
   font-size: 14px;
-  color: #6B6B6B;
+  color: #8A7E6E;
 }

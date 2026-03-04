@@ -5,7 +5,7 @@ export default function Logo({ size = 32 }: { size?: number }) {
         fontFamily: "'Space Mono', monospace",
         fontWeight: 700,
         fontSize: size,
-        color: '#111111',
+        color: '#E8622B',
         letterSpacing: '0.08em',
         textTransform: 'uppercase',
       }}

@@ -2,12 +2,13 @@
 
 import { useRouter } from 'next/navigation';
 import { getStoredToken, redirectToSpotifyAuth } from '@/lib/spotify/auth';
+import { getDeezerToken, redirectToDeezerAuth } from '@/lib/deezer/auth';
 import Logo from '@/components/Logo';
 import styles from './page.module.css';
 
 export default function Home() {
   const router = useRouter();
-  const hasToken = typeof window !== 'undefined' && !!getStoredToken();
+  const hasToken = typeof window !== 'undefined' && !!(getStoredToken() || getDeezerToken());
 
   return (
     <main className={styles.main}>
@@ -25,8 +26,19 @@ export default function Home() {
             Open your orbits
           </button>
         ) : (
-          <button className={styles.cta} onClick={redirectToSpotifyAuth}>
-            Connect Spotify
+          <>
+            <button className={styles.cta} onClick={redirectToSpotifyAuth}>
+              Connect Spotify
+            </button>
+            <button className={styles.ctaSecondary} onClick={redirectToDeezerAuth}>
+              Connect with Deezer
+            </button>
+          </>
+        )}
+
+        {!hasToken && (
+          <button className={styles.loginLink} onClick={redirectToSpotifyAuth}>
+            Already connected? Log in
           </button>
         )}
 

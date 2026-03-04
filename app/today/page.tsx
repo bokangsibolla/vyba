@@ -7,7 +7,9 @@ import { DiscoveryOrbit } from '@/lib/engine/types';
 import { sectionColors } from '@/lib/tokens';
 import styles from './page.module.css';
 
-interface DailyIssue {
+import { MusicTrack } from '@/lib/music/types';
+
+interface DailyIssueRaw {
   issue_number: number;
   dj_intro: string;
   dj_teaser: string;
@@ -28,6 +30,19 @@ interface DailyIssue {
       preview_url: string | null;
       external_urls: { spotify: string };
     }[];
+    playlist_url?: string;
+  }[];
+}
+
+interface DailyIssue {
+  issue_number: number;
+  dj_intro: string;
+  dj_teaser: string;
+  sections: {
+    id: string;
+    label: string;
+    tagline: string;
+    tracks: MusicTrack[];
     playlist_url?: string;
   }[];
 }
@@ -66,7 +81,25 @@ export default function TodayPage() {
           .single();
 
         if (dailyIssue) {
-          setIssue(dailyIssue as unknown as DailyIssue);
+          const raw = dailyIssue as unknown as DailyIssueRaw;
+          setIssue({
+            ...raw,
+            sections: raw.sections.map(s => ({
+              ...s,
+              tracks: s.tracks.map(t => ({
+                id: t.id,
+                name: t.name,
+                artist: t.artists.map(a => a.name).join(', '),
+                artistId: t.artists[0]?.id ?? '',
+                album: t.album.name,
+                albumId: t.album.id,
+                imageUrl: t.album.images[0]?.url ?? '',
+                externalUrl: t.external_urls.spotify,
+                uri: t.uri,
+                service: 'spotify' as const,
+              })),
+            })),
+          });
         }
       } catch {
         // Fail silently

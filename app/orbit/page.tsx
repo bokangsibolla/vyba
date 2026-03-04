@@ -3,10 +3,11 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { getStoredToken, logout } from '@/lib/spotify/auth';
-import { createPlaylist } from '@/lib/spotify/api';
+import { getDeezerToken } from '@/lib/deezer/auth';
+import { createMusicService, MusicService } from '@/lib/music';
 import { runDiscoveryEngine } from '@/lib/engine';
 import { EngineState, DiscoveryOrbit } from '@/lib/engine/types';
-import { sectionColors } from '@/lib/tokens';
+import { sectionColors, sectionMeta, SectionId } from '@/lib/tokens';
 import DiscoveryLoading from '@/components/DiscoveryLoading';
 import Logo from '@/components/Logo';
 import styles from './page.module.css';
@@ -14,10 +15,28 @@ import styles from './page.module.css';
 interface SavedPlaylist {
   orbitId: string;
   label: string;
-  spotifyId: string;
+  playlistId: string;
   url: string;
   trackCount: number;
   tracks: { name: string; artist: string; url: string }[];
+  service: 'spotify' | 'deezer';
+}
+
+function getEmbedSrc(pl: SavedPlaylist): string {
+  if (pl.service === 'deezer') {
+    return `https://widget.deezer.com/widget/dark/playlist/${pl.playlistId}`;
+  }
+  return `https://open.spotify.com/embed/playlist/${pl.playlistId}?utm_source=generator&theme=0`;
+}
+
+function resolveService(): { service: 'spotify' | 'deezer'; token: string } | null {
+  const spotifyToken = getStoredToken();
+  if (spotifyToken) return { service: 'spotify', token: spotifyToken };
+
+  const deezerToken = getDeezerToken();
+  if (deezerToken) return { service: 'deezer', token: deezerToken };
+
+  return null;
 }
 
 export default function OrbitPage() {
@@ -31,6 +50,7 @@ export default function OrbitPage() {
   const [playlists, setPlaylists] = useState<SavedPlaylist[]>([]);
   const [phase, setPhase] = useState<'loading' | 'saving' | 'done'>('loading');
   const fetched = useRef(false);
+  const musicServiceRef = useRef<MusicService | null>(null);
 
   const handleProgress = useCallback((state: EngineState) => {
     setEngineState(state);
@@ -42,16 +62,20 @@ export default function OrbitPage() {
     if (fetched.current) return;
     fetched.current = true;
 
-    const token = getStoredToken();
-    if (!token) {
+    const resolved = resolveService();
+    if (!resolved) {
       router.replace('/');
       return;
     }
 
-    runDiscoveryEngine(token, handleProgress)
+    const ms = createMusicService(resolved.service, resolved.token);
+    musicServiceRef.current = ms;
+    localStorage.setItem('vyba_service', resolved.service);
+
+    runDiscoveryEngine(ms, handleProgress)
       .then((orbits) => {
         if (orbits.length === 0) {
-          setError('No listening data found. Listen to more music on Spotify and try again.');
+          setError('No listening data found. Listen to more music and try again.');
         }
       })
       .catch((e) => {
@@ -65,34 +89,43 @@ export default function OrbitPage() {
     const readyOrbits = engineState.orbits.filter((o) => o.status === 'ready' && o.tracks.length > 0);
     if (readyOrbits.length === 0) return;
 
-    const token = getStoredToken();
-    if (!token) return;
+    const ms = musicServiceRef.current;
+    if (!ms) return;
 
     setPhase('saving');
 
-    async function saveAll(orbits: DiscoveryOrbit[], tkn: string) {
+    async function saveAll(orbits: DiscoveryOrbit[], musicSvc: MusicService) {
       const saved: SavedPlaylist[] = [];
       const errors: string[] = [];
 
       for (const orbit of orbits) {
         try {
-          const result = await createPlaylist(
-            tkn,
+          const url = await musicSvc.createPlaylist(
             `${orbit.label} · vyba`,
             orbit.description,
             orbit.tracks.map((t) => t.uri)
           );
+
+          // Extract playlist ID from URL
+          let playlistId = '';
+          if (musicSvc.service === 'deezer') {
+            playlistId = url.split('/playlist/')[1] ?? '';
+          } else {
+            playlistId = url.split('/playlist/')[1]?.split('?')[0] ?? '';
+          }
+
           saved.push({
             orbitId: orbit.id,
             label: orbit.label,
-            spotifyId: result.id,
-            url: result.url,
+            playlistId,
+            url,
             trackCount: orbit.tracks.length,
             tracks: orbit.tracks.map((t) => ({
               name: t.name,
-              artist: t.artists.map((a) => a.name).join(', '),
-              url: t.external_urls.spotify,
+              artist: t.artist,
+              url: t.externalUrl,
             })),
+            service: musicSvc.service,
           });
         } catch (e) {
           errors.push(`${orbit.label}: ${e instanceof Error ? e.message : 'Unknown error'}`);
@@ -111,16 +144,24 @@ export default function OrbitPage() {
       const email = localStorage.getItem('vyba_email');
       if (email && saved.length > 0) {
         try {
-          const me = await fetch('https://api.spotify.com/v1/me', {
-            headers: { Authorization: `Bearer ${tkn}` },
-          }).then((r) => r.json());
+          let displayName = 'friend';
+
+          if (musicSvc.service === 'spotify') {
+            const resolved = resolveService();
+            if (resolved) {
+              const me = await fetch('https://api.spotify.com/v1/me', {
+                headers: { Authorization: `Bearer ${resolved.token}` },
+              }).then((r) => r.json());
+              displayName = me.display_name || 'friend';
+            }
+          }
 
           await fetch('/api/send-dig', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               email,
-              displayName: me.display_name || 'friend',
+              displayName,
               playlists: saved.map((p) => ({
                 label: p.label,
                 spotifyUrl: p.url,
@@ -135,7 +176,7 @@ export default function OrbitPage() {
       }
     }
 
-    saveAll(readyOrbits, token);
+    saveAll(readyOrbits, ms);
   }, [engineState.isLoading, engineState.orbits, phase]);
 
   if (error) {
@@ -179,16 +220,27 @@ export default function OrbitPage() {
     <main className={styles.main}>
       <header className={styles.header}>
         <Logo size={24} />
-        <button className={styles.logoutBtn} onClick={() => { logout(); router.replace('/'); }}>
-          Log out
-        </button>
+        <div className={styles.headerLinks}>
+          <button className={styles.logoutBtn} onClick={() => router.push('/account')}>
+            Account
+          </button>
+          <button className={styles.logoutBtn} onClick={() => { logout(); router.replace('/'); }}>
+            Log out
+          </button>
+        </div>
       </header>
 
       <div className={styles.hero}>
         <h1 className={styles.heroTitle}>You&apos;re in.</h1>
         <p className={styles.heroSub}>
-          {playlists.length} playlists, {totalTracks} tracks added to your Spotify.
-          Fresh ones every morning at 6am.
+          {playlists.length} playlists built from your listening history.
+          New ones land in your inbox every morning at 6am.
+        </p>
+        <p className={styles.heroExplainer}>
+          Each playlist digs into a different side of your taste — from your roots to music you&apos;ve never heard.
+        </p>
+        <p className={styles.spamNotice}>
+          Check your spam folder for an email from VYBA.
         </p>
       </div>
 
@@ -201,11 +253,18 @@ export default function OrbitPage() {
                 className={styles.playlistLabel}
                 style={{ background: section?.bg, color: section?.accent }}
               >
-                <span>{section?.label ?? pl.label}</span>
-                <span className={styles.trackCount}>{pl.trackCount} tracks</span>
+                <div className={styles.playlistLabelTop}>
+                  <span>{section?.label ?? pl.label}</span>
+                  <span className={styles.trackCount}>{pl.trackCount} tracks</span>
+                </div>
+                {sectionMeta[pl.orbitId as SectionId] && (
+                  <span className={styles.playlistTagline}>
+                    {sectionMeta[pl.orbitId as SectionId].tagline}
+                  </span>
+                )}
               </div>
               <iframe
-                src={`https://open.spotify.com/embed/playlist/${pl.spotifyId}?utm_source=generator&theme=0`}
+                src={getEmbedSrc(pl)}
                 width="100%"
                 height="352"
                 frameBorder="0"
@@ -220,7 +279,7 @@ export default function OrbitPage() {
 
       <footer className={styles.footer}>
         <p className={styles.footerText}>
-          That&apos;s your first dig. Check your inbox tomorrow morning.
+          That&apos;s your first dig. Tomorrow&apos;s will be different — every day is.
         </p>
       </footer>
     </main>

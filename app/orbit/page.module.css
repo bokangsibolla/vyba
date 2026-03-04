@@ -19,7 +19,7 @@
   border: none;
   font-family: 'Space Mono', monospace;
   font-size: 11px;
-  color: #999;
+  color: #8A7E6E;
   cursor: pointer;
   padding: 8px;
   letter-spacing: 0.04em;
@@ -28,7 +28,7 @@
 }
 
 .logoutBtn:hover {
-  color: #111;
+  color: #F0DFC8;
 }
 
 .hero {
@@ -40,7 +40,7 @@
   font-family: 'Instrument Serif', serif;
   font-size: 40px;
   font-weight: 400;
-  color: #111;
+  color: #F0DFC8;
   line-height: 1.1;
   margin-bottom: 12px;
 }
@@ -48,9 +48,36 @@
 .heroSub {
   font-family: 'Space Mono', monospace;
   font-size: 12px;
-  color: #999;
+  color: #8A7E6E;
   letter-spacing: 0.04em;
   line-height: 1.6;
+}
+
+.heroExplainer {
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  color: #6B6158;
+  max-width: 340px;
+  margin: 8px auto 0;
+  line-height: 1.5;
+}
+
+.spamNotice {
+  font-family: 'Space Mono', monospace;
+  font-size: 11px;
+  color: #E8622B;
+  letter-spacing: 0.04em;
+  margin-top: 12px;
+  padding: 10px 16px;
+  background: #3A2218;
+  border-radius: 8px;
+  border: 1px solid #4A3020;
+}
+
+.headerLinks {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .playlists {
@@ -60,22 +87,37 @@
 }
 
 .playlistCard {
-  border: 2px solid #E5DDD0;
+  border: 2px solid #3D362C;
   border-radius: 12px;
   overflow: hidden;
-  background: #FFFDF5;
+  background: #252119;
 }
 
 .playlistLabel {
   padding: 10px 16px;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
+  gap: 4px;
   font-family: 'Space Mono', monospace;
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
+}
+
+.playlistLabelTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.playlistTagline {
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  opacity: 0.6;
 }
 
 .trackCount {
@@ -96,7 +138,7 @@
 .moreText {
   font-family: 'Space Mono', monospace;
   font-size: 11px;
-  color: #999;
+  color: #8A7E6E;
   letter-spacing: 0.04em;
   padding: 8px 16px 12px;
 }
@@ -109,7 +151,7 @@
 .footerText {
   font-family: 'Space Mono', monospace;
   font-size: 12px;
-  color: #999;
+  color: #5A5347;
   letter-spacing: 0.04em;
 }
 
@@ -127,13 +169,13 @@
   font-family: 'Space Mono', monospace;
   font-size: 16px;
   font-weight: 700;
-  color: #111;
+  color: #F0DFC8;
 }
 
 .errorMessage {
   font-family: 'Inter', sans-serif;
   font-size: 14px;
-  color: #999;
+  color: #8A7E6E;
   max-width: 300px;
 }
 
@@ -145,8 +187,8 @@
 
 .retryBtn {
   padding: 12px 24px;
-  background: #111;
-  color: #FFFDF5;
+  background: #E8622B;
+  color: #1A1714;
   border: none;
   border-radius: 8px;
   font-family: 'Space Mono', monospace;
@@ -165,8 +207,8 @@
 .logoutBtnAlt {
   padding: 12px 24px;
   background: none;
-  color: #999;
-  border: 2px solid #E5DDD0;
+  color: #8A7E6E;
+  border: 2px solid #3D362C;
   border-radius: 8px;
   font-family: 'Inter', sans-serif;
   font-size: 13px;
@@ -176,6 +218,6 @@
 }
 
 .logoutBtnAlt:hover {
-  border-color: #111;
-  color: #111;
+  border-color: #8A7E6E;
+  color: #F0DFC8;
 }

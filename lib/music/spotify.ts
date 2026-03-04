@@ -10,7 +10,7 @@ const TIME_RANGE_MAP = {
 
 export class SpotifyService implements MusicService {
   readonly service = 'spotify' as const;
-  private token: string;
+  readonly token: string;
 
   constructor(token: string) {
     this.token = token;
@@ -46,8 +46,44 @@ export class SpotifyService implements MusicService {
     return data.tracks.items.map(toMusicTrack);
   }
 
+  async getTopArtistsAllRanges(): Promise<{ shortTerm: MusicArtist[]; mediumTerm: MusicArtist[]; longTerm: MusicArtist[] }> {
+    const [shortTerm, mediumTerm, longTerm] = await Promise.all([
+      this.getTopArtists('short'),
+      this.getTopArtists('medium'),
+      this.getTopArtists('long'),
+    ]);
+    return { shortTerm, mediumTerm, longTerm };
+  }
+
   async searchTracksByArtist(artistName: string, limit = 5): Promise<MusicTrack[]> {
     return this.searchTracks(`artist:"${artistName}"`, limit);
+  }
+
+  async discoverByGenres(genres: string[], excludeIds: Set<string>, limit = 30): Promise<MusicTrack[]> {
+    const results: MusicTrack[] = [];
+    const seen = new Set<string>();
+
+    for (const genre of genres.slice(0, 5)) {
+      if (results.length >= limit) break;
+      const q = encodeURIComponent(`genre:"${genre}"`);
+      const data = await this.fetch<{ tracks: { items: SpotifyRawTrack[] } }>(
+        `/search?q=${q}&type=track&limit=10`
+      );
+      for (const track of data.tracks.items) {
+        if (!seen.has(track.id) && !excludeIds.has(track.id)) {
+          seen.add(track.id);
+          results.push(toMusicTrack(track));
+        }
+      }
+    }
+
+    // Shuffle
+    for (let i = results.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [results[i], results[j]] = [results[j], results[i]];
+    }
+
+    return results.slice(0, limit);
   }
 
   async createPlaylist(name: string, description: string, trackUris: string[]): Promise<string> {

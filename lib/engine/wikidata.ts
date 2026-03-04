@@ -147,6 +147,48 @@ export async function getArtistGenres(
   return result;
 }
 
+/**
+ * Find Wikidata IDs by artist names (for Deezer users who don't have Spotify IDs).
+ * Queries by rdfs:label. Less precise than Spotify ID matching but works across services.
+ */
+export async function findWikidataIdsByNames(
+  names: string[]
+): Promise<Map<string, string>> {
+  const cacheKey = getCacheKey('wikidata_names', names);
+  const cached = getCached<Record<string, string>>(cacheKey);
+  if (cached) return new Map(Object.entries(cached));
+
+  const result = new Map<string, string>();
+  const batches = chunk(names, 30);
+
+  for (const batch of batches) {
+    const values = batch.map((n) => `"${n.replace(/"/g, '\\"')}"@en`).join(' ');
+    const query = `
+      SELECT ?artist ?artistLabel WHERE {
+        VALUES ?name { ${values} }
+        ?artist rdfs:label ?name .
+        ?artist wdt:P31/wdt:P279* wd:Q488205 .
+        SERVICE wikibase:label { bd:serviceParam wikibase:language "en". }
+      }
+      LIMIT 200
+    `;
+
+    try {
+      const data = await sparqlQuery<SparqlResult>(query);
+      for (const binding of data.results.bindings) {
+        const wikidataId = binding.artist.value.split('/').pop()!;
+        const name = binding.artistLabel?.value ?? '';
+        if (name) result.set(name, wikidataId);
+      }
+    } catch {
+      // Skip batch on error
+    }
+  }
+
+  setCache(cacheKey, Object.fromEntries(result), CACHE_TTL.wikidata);
+  return result;
+}
+
 function chunk<T>(arr: T[], size: number): T[][] {
   const chunks: T[][] = [];
   for (let i = 0; i < arr.length; i += size) {

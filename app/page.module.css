@@ -19,7 +19,7 @@
   font-family: 'Instrument Serif', serif;
   font-size: 44px;
   font-weight: 400;
-  color: #111111;
+  color: #F0DFC8;
   line-height: 1.1;
   letter-spacing: -0.02em;
   margin: 8px 0 4px;
@@ -28,15 +28,15 @@
 .sub {
   font-family: 'Space Mono', monospace;
   font-size: 12px;
-  color: #999;
+  color: #8A7E6E;
   letter-spacing: 0.04em;
 }
 
 .cta {
   width: 100%;
   padding: 16px 24px;
-  background: #111111;
-  color: #FFFDF5;
+  background: #E8622B;
+  color: #1A1714;
   border: none;
   border-radius: 8px;
   font-family: 'Space Mono', monospace;
@@ -50,7 +50,7 @@
 }
 
 .cta:hover {
-  opacity: 0.88;
+  background: #F07040;
   transform: translateY(-1px);
 }
 
@@ -58,10 +58,53 @@
   transform: scale(0.98);
 }
 
+.ctaSecondary {
+  width: 100%;
+  padding: 16px 24px;
+  background: transparent;
+  color: #F0DFC8;
+  border: 2px solid #3D362C;
+  border-radius: 8px;
+  font-family: 'Space Mono', monospace;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.ctaSecondary:hover {
+  border-color: #8A7E6E;
+  transform: translateY(-1px);
+}
+
+.ctaSecondary:active {
+  transform: scale(0.98);
+}
+
+.loginLink {
+  background: none;
+  border: none;
+  font-family: 'Space Mono', monospace;
+  font-size: 11px;
+  color: #8A7E6E;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  padding: 4px;
+  transition: color 0.15s ease;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.loginLink:hover {
+  color: #F0DFC8;
+}
+
 .note {
   font-family: 'Space Mono', monospace;
   font-size: 10px;
-  color: #C5C0B8;
+  color: #5A5347;
   letter-spacing: 0.06em;
   margin-top: 4px;
 }
