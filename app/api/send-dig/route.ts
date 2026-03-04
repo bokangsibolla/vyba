@@ -106,25 +106,25 @@ function buildEmailHtml(name: string, playlists: PlaylistSection[]): string {
 }
 
 export async function POST(request: Request) {
-  const RESEND_KEY = process.env.RESEND_API_KEY;
-  if (!RESEND_KEY) {
+  const BREVO_KEY = process.env.BREVO_API_KEY;
+  if (!BREVO_KEY) {
     return NextResponse.json({ error: 'Email not configured' }, { status: 500 });
   }
 
   const body: SendDigRequest = await request.json();
   const html = buildEmailHtml(body.displayName || 'friend', body.playlists);
 
-  const res = await fetch('https://api.resend.com/emails', {
+  const res = await fetch('https://api.brevo.com/v3/smtp/email', {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${RESEND_KEY}`,
+      'api-key': BREVO_KEY,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      from: 'VYBA <onboarding@resend.dev>',
-      to: body.email,
+      sender: { name: 'VYBA', email: 'sibollabokang@gmail.com' },
+      to: [{ email: body.email }],
       subject: `Your first dig — ${body.playlists.length} playlists built from your listening history`,
-      html,
+      htmlContent: html,
     }),
   });
 
