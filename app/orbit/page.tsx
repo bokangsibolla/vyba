@@ -133,7 +133,9 @@ export default function OrbitPage() {
       }
 
       if (saved.length === 0 && errors.length > 0) {
-        setError(`Could not create playlists. ${errors[0]}`);
+        const is403 = errors.some(e => e.includes('403'));
+        const hint = is403 ? ' Try logging out and back in to grant playlist permissions.' : '';
+        setError(`Could not create playlists. ${errors[0]}${hint}`);
         return;
       }
 

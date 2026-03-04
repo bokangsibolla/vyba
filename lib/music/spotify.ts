@@ -88,17 +88,26 @@ export class SpotifyService implements MusicService {
 
   async createPlaylist(name: string, description: string, trackUris: string[]): Promise<string> {
     const user = await this.fetch<{ id: string }>('/me');
-    const playlist = await fetch(`${BASE}/users/${user.id}/playlists`, {
+    const createRes = await fetch(`${BASE}/users/${user.id}/playlists`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${this.token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, description, public: false }),
-    }).then(r => r.json());
+    });
+    if (!createRes.ok) {
+      const body = await createRes.text();
+      throw new Error(`Spotify create playlist ${createRes.status}: ${body}`);
+    }
+    const playlist = await createRes.json();
 
-    await fetch(`${BASE}/playlists/${playlist.id}/items`, {
+    const addRes = await fetch(`${BASE}/playlists/${playlist.id}/items`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${this.token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ uris: trackUris }),
     });
+    if (!addRes.ok) {
+      const body = await addRes.text();
+      throw new Error(`Spotify add tracks ${addRes.status}: ${body}`);
+    }
 
     return playlist.external_urls.spotify;
   }
