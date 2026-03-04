@@ -39,6 +39,7 @@ export async function redirectToSpotifyAuth(): Promise<void> {
     redirect_uri: REDIRECT_URI,
     code_challenge_method: 'S256',
     code_challenge: codeChallenge,
+    show_dialog: 'true',
   });
 
   window.location.href = `https://accounts.spotify.com/authorize?${params}`;
@@ -48,6 +49,7 @@ export async function exchangeCodeForToken(code: string): Promise<{
   access_token: string;
   refresh_token: string;
   expires_in: number;
+  scope: string;
 }> {
   const codeVerifier = sessionStorage.getItem('spotify_code_verifier');
   if (!codeVerifier) throw new Error('No code verifier found');
@@ -64,8 +66,13 @@ export async function exchangeCodeForToken(code: string): Promise<{
     }),
   });
 
-  if (!res.ok) throw new Error('Token exchange failed');
-  return res.json();
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`Token exchange failed (${res.status}): ${errText}`);
+  }
+  const data = await res.json();
+  console.log('[vyba] Token scopes:', data.scope);
+  return data;
 }
 
 export function getStoredToken(): string | null {
