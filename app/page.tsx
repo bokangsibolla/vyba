@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { getStoredToken, redirectToSpotifyAuth } from '@/lib/spotify/auth';
-import { getDeezerToken, redirectToDeezerAuth } from '@/lib/deezer/auth';
+import { getDeezerToken } from '@/lib/deezer/auth';
 import Logo from '@/components/Logo';
 import styles from './page.module.css';
 
@@ -29,9 +29,6 @@ export default function Home() {
           <>
             <button className={styles.cta} onClick={redirectToSpotifyAuth}>
               Connect Spotify
-            </button>
-            <button className={styles.ctaSecondary} onClick={redirectToDeezerAuth}>
-              Connect with Deezer
             </button>
           </>
         )}
