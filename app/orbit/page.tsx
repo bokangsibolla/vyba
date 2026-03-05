@@ -192,7 +192,7 @@ export default function OrbitPage() {
         <div className={styles.errorContainer}>
           <Logo size={28} />
           <p className={styles.errorTitle}>Something went wrong</p>
-          <p className={styles.errorMessage}>{error}</p>
+          <p className={styles.errorMessage} style={{ whiteSpace: 'pre-wrap', textAlign: 'left', fontSize: 11, maxWidth: 340 }}>{error}</p>
           <div className={styles.errorActions}>
             <button
               className={styles.retryBtn}

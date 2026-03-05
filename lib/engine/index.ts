@@ -5,12 +5,9 @@ import {
   EngineState,
   SignalProgress,
   OrbitId,
-  DiscoveredArtist,
 } from './types';
 
 const TARGET_PER_ORBIT = 18;
-
-// --- Helpers ---
 
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr];
@@ -34,10 +31,7 @@ function dedupe(tracks: MusicTrack[]): MusicTrack[] {
   });
 }
 
-function makeOrbit(
-  id: OrbitId,
-  tracks: MusicTrack[],
-): DiscoveryOrbit {
+function makeOrbit(id: OrbitId, tracks: MusicTrack[]): DiscoveryOrbit {
   const meta = sectionMeta[id as keyof typeof sectionMeta];
   const color = sectionColors[id as keyof typeof sectionColors];
   return {
@@ -52,17 +46,17 @@ function makeOrbit(
   };
 }
 
-// --- Main engine ---
-
 export async function runDiscoveryEngine(
   musicService: MusicService,
   onProgress: (state: EngineState) => void,
 ): Promise<DiscoveryOrbit[]> {
+  const diag: string[] = []; // diagnostic log — shown on error
+
   const progress: SignalProgress[] = [
     { label: 'Loading your top artists', status: 'pending' },
-    { label: 'Finding artists you don\'t know', status: 'pending' },
+    { label: 'Finding new artists', status: 'pending' },
     { label: 'Getting their best songs', status: 'pending' },
-    { label: 'Building your playlists', status: 'pending' },
+    { label: 'Building playlists', status: 'pending' },
   ];
 
   const emit = (orbits: DiscoveryOrbit[] = []) => {
@@ -74,6 +68,12 @@ export async function runDiscoveryEngine(
     emit();
   };
 
+  const fail = (msg: string): DiscoveryOrbit[] => {
+    const fullMsg = msg + '\n\nDiagnostics:\n' + diag.join('\n');
+    onProgress({ orbits: [], isLoading: false, progress, error: fullMsg });
+    return [];
+  };
+
   emit();
 
   // ============================
@@ -81,13 +81,31 @@ export async function runDiscoveryEngine(
   // ============================
   setStep(0, 'loading');
 
-  const [shortArtists, mediumArtists, longArtists] = await Promise.all([
-    musicService.getTopArtists('short', 50).catch(() => [] as MusicArtist[]),
-    musicService.getTopArtists('medium', 50).catch(() => [] as MusicArtist[]),
-    musicService.getTopArtists('long', 50).catch(() => [] as MusicArtist[]),
-  ]);
+  let shortArtists: MusicArtist[] = [];
+  let mediumArtists: MusicArtist[] = [];
+  let longArtists: MusicArtist[] = [];
 
-  // Build the "known artists" set — just from top artists, no extra scopes needed
+  try {
+    shortArtists = await musicService.getTopArtists('short', 50);
+    diag.push(`short_term artists: ${shortArtists.length}`);
+  } catch (e) {
+    diag.push(`short_term artists FAILED: ${e instanceof Error ? e.message : e}`);
+  }
+
+  try {
+    mediumArtists = await musicService.getTopArtists('medium', 50);
+    diag.push(`medium_term artists: ${mediumArtists.length}`);
+  } catch (e) {
+    diag.push(`medium_term artists FAILED: ${e instanceof Error ? e.message : e}`);
+  }
+
+  try {
+    longArtists = await musicService.getTopArtists('long', 50);
+    diag.push(`long_term artists: ${longArtists.length}`);
+  } catch (e) {
+    diag.push(`long_term artists FAILED: ${e instanceof Error ? e.message : e}`);
+  }
+
   const knownNames = new Set<string>();
   const knownIds = new Set<string>();
   const allUserArtists: MusicArtist[] = [];
@@ -100,85 +118,86 @@ export async function runDiscoveryEngine(
     }
   }
 
+  diag.push(`unique user artists: ${allUserArtists.length}`);
+
   if (allUserArtists.length === 0) {
-    const msg = 'No top artists found. Listen to more music on Spotify first.';
-    setStep(0, 'error', msg);
-    onProgress({ orbits: [], isLoading: false, progress, error: msg });
-    return [];
+    setStep(0, 'error');
+    return fail('No top artists found. Listen to more music on Spotify first.');
   }
 
   setStep(0, 'done', `${allUserArtists.length} artists`);
 
   // ============================
-  // Step 2: Find related artists you DON'T listen to
+  // Step 2: Find related artists
   // ============================
   setStep(1, 'loading');
 
   const newArtists: MusicArtist[] = [];
   const newArtistIds = new Set<string>();
+  const seedSlice = shuffle(allUserArtists).slice(0, 5); // only 5 to avoid rate limits
 
-  // Get related artists for up to 10 of the user's top artists
-  let relatedErrors = 0;
-  for (const artist of shuffle(allUserArtists).slice(0, 10)) {
+  for (const artist of seedSlice) {
     try {
       const related = await musicService.getRelatedArtists(artist.id);
+      diag.push(`related to "${artist.name}": ${related.length} artists`);
+      let added = 0;
       for (const r of related) {
         if (!knownNames.has(r.name.toLowerCase()) && !newArtistIds.has(r.id)) {
           newArtistIds.add(r.id);
           newArtists.push(r);
+          added++;
         }
       }
+      diag.push(`  → ${added} new (not in your top artists)`);
     } catch (e) {
-      relatedErrors++;
-      console.log(`[vyba] Failed to get related for ${artist.name}:`, e instanceof Error ? e.message : e);
+      diag.push(`related to "${artist.name}" FAILED: ${e instanceof Error ? e.message : e}`);
     }
   }
-  if (relatedErrors > 0) {
-    console.log(`[vyba] ${relatedErrors} related-artist fetches failed`);
-  }
+
+  diag.push(`total new artists: ${newArtists.length}`);
 
   if (newArtists.length === 0) {
-    const msg = 'Could not find new artists. Try again later.';
-    setStep(1, 'error', msg);
-    onProgress({ orbits: [], isLoading: false, progress, error: msg });
-    return [];
+    setStep(1, 'error');
+    return fail('Could not find new artists from related artists.');
   }
 
   setStep(1, 'done', `${newArtists.length} new artists`);
 
   // ============================
-  // Step 3: Get top tracks from new artists
+  // Step 3: Get top tracks
   // ============================
   setStep(2, 'loading');
 
   const allNewTracks: MusicTrack[] = [];
+  const artistSlice = shuffle(newArtists).slice(0, 20); // only 20 to avoid rate limits
+  let trackErrors = 0;
 
-  let trackFetchErrors = 0;
-  for (const artist of shuffle(newArtists).slice(0, 40)) {
+  for (const artist of artistSlice) {
     try {
       const tracks = await musicService.getArtistTopTracks(artist.id);
-      // Double-check: only keep tracks by artists NOT in user's top artists
       const genuinelyNew = tracks.filter(t => !knownNames.has(t.artist.toLowerCase()));
       allNewTracks.push(...genuinelyNew.slice(0, 3));
+      if (genuinelyNew.length > 0) {
+        diag.push(`"${artist.name}": ${genuinelyNew.length} new tracks`);
+      }
     } catch (e) {
-      trackFetchErrors++;
-      console.log(`[vyba] Failed to get tracks for ${artist.name}:`, e instanceof Error ? e.message : e);
+      trackErrors++;
+      diag.push(`"${artist.name}" top tracks FAILED: ${e instanceof Error ? e.message : e}`);
     }
   }
-  if (trackFetchErrors > 0) {
-    console.log(`[vyba] ${trackFetchErrors} artist top-track fetches failed out of ${Math.min(newArtists.length, 40)}`);
-  }
+
+  diag.push(`track fetch errors: ${trackErrors}/${artistSlice.length}`);
+  diag.push(`total new tracks before dedupe: ${allNewTracks.length}`);
 
   const deduped = dedupe(allNewTracks);
-
-  setStep(2, 'done', `${deduped.length} new songs`);
+  diag.push(`after dedupe: ${deduped.length}`);
 
   if (deduped.length === 0) {
-    const msg = 'Found new artists but could not get their tracks.';
-    setStep(2, 'error', msg);
-    onProgress({ orbits: [], isLoading: false, progress, error: msg });
-    return [];
+    setStep(2, 'error');
+    return fail('Found new artists but could not get their tracks.');
   }
+
+  setStep(2, 'done', `${deduped.length} new songs`);
 
   // ============================
   // Step 4: Split into playlists
@@ -205,17 +224,22 @@ export async function runDiscoveryEngine(
 
   for (const id of orbitIds) {
     const tracks = takeSlice(TARGET_PER_ORBIT);
-    if (tracks.length >= 5) {
+    if (tracks.length >= 3) { // lowered from 5 to 3 minimum
       orbits.push(makeOrbit(id, tracks));
     }
   }
 
-  setStep(3, 'done', `${orbits.length} playlists, ${orbits.reduce((s, o) => s + o.tracks.length, 0)} songs`);
+  diag.push(`orbits built: ${orbits.length}`);
+  diag.push(`total tracks in playlists: ${orbits.reduce((s, o) => s + o.tracks.length, 0)}`);
 
-  console.log('[vyba] Done:', orbits.length, 'playlists,',
-    orbits.reduce((s, o) => s + o.tracks.length, 0), 'total tracks from',
-    newArtists.length, 'new artists');
+  if (orbits.length === 0) {
+    setStep(3, 'error');
+    return fail('Had tracks but could not build playlists.');
+  }
 
+  setStep(3, 'done', `${orbits.length} playlists`);
+
+  console.log('[vyba] Done:', orbits.length, 'playlists');
   onProgress({ orbits, isLoading: false, progress });
   return orbits;
 }
