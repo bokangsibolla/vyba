@@ -72,6 +72,21 @@ export default function OrbitPage() {
     musicServiceRef.current = ms;
     localStorage.setItem('vyba_service', resolved.service);
 
+    // Verify the token has library-read scope before running the engine
+    // If not, force re-auth to get the new scopes
+    if (resolved.service === 'spotify') {
+      fetch('https://api.spotify.com/v1/me/tracks?limit=1', {
+        headers: { Authorization: `Bearer ${resolved.token}` },
+      }).then(res => {
+        if (res.status === 403) {
+          console.log('[vyba] Token missing library-read scope, forcing re-auth');
+          logout();
+          router.replace('/');
+          return;
+        }
+      }).catch(() => {});
+    }
+
     runDiscoveryEngine(ms, handleProgress)
       .then((orbits) => {
         if (orbits.length === 0 && !engineState.error) {
@@ -290,6 +305,30 @@ export default function OrbitPage() {
             </div>
           );
         })}
+      </div>
+
+      {/* Instagram-shareable card */}
+      <div className={styles.shareCard} id="vyba-share-card">
+        <p className={styles.shareCardLabel}>YOUR MUSICAL DNA</p>
+        <p className={styles.shareCardLogo}>VYBA</p>
+        <p className={styles.shareCardName}>BUILT FOR {(localStorage.getItem('vyba_email') ?? 'YOU').split('@')[0].toUpperCase()}</p>
+        <div className={styles.shareCardDivider} />
+        <p className={styles.shareCardStat}>
+          {playlists.length} playlists. {totalTracks} tracks.<br />
+          Zero songs you&apos;ve heard before.
+        </p>
+        <div className={styles.shareCardOrbits}>
+          {playlists.map((pl) => {
+            const section = sectionColors[pl.orbitId as keyof typeof sectionColors];
+            return (
+              <span key={pl.orbitId} style={{ color: section?.accent ?? '#8A7E6E' }}>
+                {section?.label ?? pl.label}
+              </span>
+            );
+          })}
+        </div>
+        <div className={styles.shareCardDividerFaint} />
+        <p className={styles.shareCardCta}>SCREENSHOT THIS &middot; SHARE TO YOUR STORY</p>
       </div>
 
       <footer className={styles.footer}>
