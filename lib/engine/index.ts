@@ -46,24 +46,6 @@ function makeOrbit(id: OrbitId, tracks: MusicTrack[]): DiscoveryOrbit {
   };
 }
 
-// Spotify-recognized genre seeds (subset that Spotify accepts)
-const SPOTIFY_GENRE_SEEDS = [
-  'acoustic', 'afrobeat', 'alt-rock', 'alternative', 'ambient',
-  'blues', 'bossanova', 'british', 'chill', 'classical',
-  'club', 'country', 'dance', 'deep-house', 'disco',
-  'drum-and-bass', 'dub', 'dubstep', 'edm', 'electro',
-  'electronic', 'folk', 'funk', 'garage', 'gospel',
-  'groove', 'grunge', 'happy', 'hard-rock', 'hardcore',
-  'hip-hop', 'house', 'idm', 'indie', 'indie-pop',
-  'industrial', 'j-pop', 'j-rock', 'jazz', 'k-pop',
-  'latin', 'metal', 'minimal-techno', 'new-age', 'opera',
-  'piano', 'pop', 'punk', 'r-n-b', 'reggae',
-  'reggaeton', 'rock', 'romance', 'sad', 'salsa',
-  'samba', 'shoe-gaze', 'singer-songwriter', 'ska', 'sleep',
-  'soul', 'study', 'synth-pop', 'techno', 'trance',
-  'trip-hop', 'world-music',
-];
-
 export async function runDiscoveryEngine(
   musicService: MusicService,
   onProgress: (state: EngineState) => void,
@@ -71,9 +53,9 @@ export async function runDiscoveryEngine(
   const diag: string[] = [];
 
   const progress: SignalProgress[] = [
-    { label: 'Loading your top artists', status: 'pending' },
-    { label: 'Analyzing your genres', status: 'pending' },
-    { label: 'Discovering new music', status: 'pending' },
+    { label: 'Loading your music taste', status: 'pending' },
+    { label: 'Building search queries', status: 'pending' },
+    { label: 'Searching for new music', status: 'pending' },
     { label: 'Building playlists', status: 'pending' },
   ];
 
@@ -95,31 +77,28 @@ export async function runDiscoveryEngine(
   emit();
 
   // ============================
-  // Step 1: Get your top artists
+  // Step 1: Get user's taste profile
   // ============================
   setStep(0, 'loading');
 
-  let allUserArtists: MusicArtist[] = [];
   const knownNames = new Set<string>();
+  const knownTrackIds = new Set<string>();
+  const allGenres: string[] = [];
 
   for (const range of ['short', 'medium', 'long'] as const) {
     try {
       const artists = await musicService.getTopArtists(range, 50);
-      diag.push(`${range}_term artists: ${artists.length}`);
+      diag.push(`${range} artists: ${artists.length}`);
       for (const a of artists) {
-        if (!knownNames.has(a.name.toLowerCase())) {
-          knownNames.add(a.name.toLowerCase());
-          allUserArtists.push(a);
+        knownNames.add(a.name.toLowerCase());
+        for (const g of (a.genres ?? [])) {
+          allGenres.push(g.toLowerCase());
         }
       }
     } catch (e) {
-      diag.push(`${range}_term FAILED: ${e instanceof Error ? e.message : e}`);
+      diag.push(`${range} artists FAILED: ${e instanceof Error ? e.message : e}`);
     }
-  }
 
-  // Also get top tracks to know track-level exclusions
-  const knownTrackIds = new Set<string>();
-  for (const range of ['short', 'medium', 'long'] as const) {
     try {
       const tracks = await musicService.getTopTracks(range, 50);
       for (const t of tracks) {
@@ -129,60 +108,64 @@ export async function runDiscoveryEngine(
     } catch { /* non-critical */ }
   }
 
-  diag.push(`unique known artists: ${knownNames.size}`);
-  diag.push(`known track IDs: ${knownTrackIds.size}`);
+  diag.push(`known artists: ${knownNames.size}, known tracks: ${knownTrackIds.size}`);
 
-  if (allUserArtists.length === 0) {
+  // Count genre frequency
+  const genreCounts = new Map<string, number>();
+  for (const g of allGenres) {
+    genreCounts.set(g, (genreCounts.get(g) || 0) + 1);
+  }
+  const topGenres = Array.from(genreCounts.entries())
+    .sort((a, b) => b[1] - a[1])
+    .map(([g]) => g)
+    .slice(0, 15);
+
+  diag.push(`top genres: ${topGenres.slice(0, 8).join(', ')}`);
+
+  if (knownNames.size === 0) {
     setStep(0, 'error');
-    return fail('No top artists found.');
+    return fail('No listening data found.');
   }
 
-  setStep(0, 'done', `${allUserArtists.length} artists`);
+  setStep(0, 'done', `${knownNames.size} artists, ${topGenres.length} genres`);
 
   // ============================
-  // Step 2: Extract and match genres
+  // Step 2: Build search queries from genres
   // ============================
   setStep(1, 'loading');
 
-  // Get all genres from user's artists
-  const userGenres = new Map<string, number>();
-  for (const a of allUserArtists) {
-    for (const g of (a.genres ?? [])) {
-      userGenres.set(g.toLowerCase(), (userGenres.get(g.toLowerCase()) || 0) + 1);
-    }
+  // Create varied search queries from the user's genres
+  const searchQueries: { query: string; label: string }[] = [];
+
+  // From top genres — search for tracks in those genres
+  for (const genre of topGenres.slice(0, 8)) {
+    searchQueries.push({ query: genre, label: genre });
   }
 
-  // Match to Spotify's accepted genre seeds
-  const matchedGenres: string[] = [];
-  for (const seed of SPOTIFY_GENRE_SEEDS) {
-    // Check if any user genre contains or matches this seed
-    for (const [userGenre] of userGenres) {
-      if (userGenre.includes(seed) || seed.includes(userGenre.replace(/\s+/g, '-'))) {
-        if (!matchedGenres.includes(seed)) {
-          matchedGenres.push(seed);
-        }
-        break;
-      }
-    }
+  // Add discovery-oriented queries
+  for (const genre of shuffle(topGenres).slice(0, 4)) {
+    searchQueries.push({ query: `${genre} underground`, label: `${genre} underground` });
+    searchQueries.push({ query: `${genre} new`, label: `${genre} new` });
   }
 
-  // Also find genres the user DOESN'T listen to (for wildcard)
-  const unusedGenres = SPOTIFY_GENRE_SEEDS.filter(g => !matchedGenres.includes(g));
+  // Wildcard: genres the user doesn't listen to
+  const wildcardGenres = [
+    'afrobeats', 'bossa nova', 'city pop', 'amapiano', 'shoegaze',
+    'dub', 'highlife', 'cumbia', 'grime', 'ethio jazz',
+    'tropicalia', 'dancehall', 'baile funk', 'post punk', 'dream pop',
+  ].filter(g => !topGenres.some(tg => tg.includes(g) || g.includes(tg)));
+  const wildcardPick = shuffle(wildcardGenres)[0] ?? 'world music';
+  searchQueries.push({ query: wildcardPick, label: `wildcard: ${wildcardPick}` });
 
-  diag.push(`user genres: ${Array.from(userGenres.keys()).slice(0, 10).join(', ')}...`);
-  diag.push(`matched Spotify seeds: ${matchedGenres.join(', ')}`);
-  diag.push(`unused genres available: ${unusedGenres.length}`);
+  // Ambient/focus queries
+  searchQueries.push({ query: 'lo-fi chill beats', label: 'focus' });
+  searchQueries.push({ query: 'ambient instrumental', label: 'ambient' });
 
-  if (matchedGenres.length === 0) {
-    // Fallback: use broad genres
-    matchedGenres.push('pop', 'rock', 'hip-hop', 'r-n-b', 'electronic');
-    diag.push('using fallback genres');
-  }
-
-  setStep(1, 'done', `${matchedGenres.length} genre seeds`);
+  diag.push(`search queries: ${searchQueries.length}`);
+  setStep(1, 'done', `${searchQueries.length} search queries`);
 
   // ============================
-  // Step 3: Discover new music via Recommendations + Search
+  // Step 3: Search and collect new tracks
   // ============================
   setStep(2, 'loading');
 
@@ -190,53 +173,25 @@ export async function runDiscoveryEngine(
     !knownTrackIds.has(t.id) && !knownNames.has(t.artist.toLowerCase());
 
   const allNewTracks: MusicTrack[] = [];
+  let searchSuccesses = 0;
+  let searchFailures = 0;
 
-  // Strategy A: Recommendations seeded by genres (multiple batches with different seeds)
-  const genreBatches = shuffle(matchedGenres);
-  for (let i = 0; i < genreBatches.length && allNewTracks.length < 150; i += 2) {
-    const seeds = genreBatches.slice(i, i + 2);
-    if (seeds.length === 0) break;
+  for (const { query, label } of searchQueries) {
     try {
-      const recs = await musicService.getRecommendations({
-        seedGenres: seeds,
-        limit: 50,
-      });
-      const newOnes = recs.filter(isNew);
-      allNewTracks.push(...newOnes);
-      diag.push(`recs [${seeds.join(',')}]: ${recs.length} total, ${newOnes.length} new`);
-    } catch (e) {
-      diag.push(`recs [${seeds.join(',')}] FAILED: ${e instanceof Error ? e.message : e}`);
-    }
-  }
-
-  // Strategy B: Search for genre terms to find more variety
-  const searchTerms = shuffle(matchedGenres).slice(0, 5);
-  for (const term of searchTerms) {
-    if (allNewTracks.length >= 150) break;
-    try {
-      const results = await musicService.searchTracks(`genre:${term}`, 20);
+      const results = await musicService.searchTracks(query, 30);
       const newOnes = results.filter(isNew);
       allNewTracks.push(...newOnes);
-      diag.push(`search "${term}": ${results.length} total, ${newOnes.length} new`);
+      searchSuccesses++;
+      if (newOnes.length > 0) {
+        diag.push(`"${label}": ${results.length} results, ${newOnes.length} new`);
+      }
     } catch (e) {
-      diag.push(`search "${term}" FAILED: ${e instanceof Error ? e.message : e}`);
+      searchFailures++;
+      diag.push(`"${label}" FAILED: ${e instanceof Error ? e.message : e}`);
     }
   }
 
-  // Strategy C: Wildcard — unexplored genre
-  const wildcardPick = shuffle(unusedGenres)[0] ?? 'world-music';
-  try {
-    const recs = await musicService.getRecommendations({
-      seedGenres: [wildcardPick],
-      limit: 30,
-    });
-    const newOnes = recs.filter(isNew);
-    allNewTracks.push(...newOnes);
-    diag.push(`wildcard [${wildcardPick}]: ${recs.length} total, ${newOnes.length} new`);
-  } catch (e) {
-    diag.push(`wildcard FAILED: ${e instanceof Error ? e.message : e}`);
-  }
-
+  diag.push(`searches: ${searchSuccesses} ok, ${searchFailures} failed`);
   diag.push(`total new tracks: ${allNewTracks.length}`);
 
   const deduped = dedupe(allNewTracks);
@@ -244,10 +199,10 @@ export async function runDiscoveryEngine(
 
   if (deduped.length === 0) {
     setStep(2, 'error');
-    return fail('Could not find any new music.');
+    return fail('Searches ran but found no new music after filtering.');
   }
 
-  setStep(2, 'done', `${deduped.length} new songs found`);
+  setStep(2, 'done', `${deduped.length} new songs`);
 
   // ============================
   // Step 4: Split into playlists
@@ -283,11 +238,9 @@ export async function runDiscoveryEngine(
     }
   }
 
-  diag.push(`orbits: ${orbits.length}, total tracks: ${orbits.reduce((s, o) => s + o.tracks.length, 0)}`);
-
   if (orbits.length === 0) {
     setStep(3, 'error');
-    return fail('Had tracks but could not fill playlists.');
+    return fail('Had tracks but not enough to fill playlists.');
   }
 
   setStep(3, 'done', `${orbits.length} playlists`);
