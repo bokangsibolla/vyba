@@ -30,7 +30,10 @@ export class SpotifyService implements MusicService {
         continue;
       }
 
-      if (!res.ok) throw new Error(`Spotify API ${res.status}`);
+      if (!res.ok) {
+        const body = await res.text().catch(() => '');
+        throw new Error(`Spotify API ${res.status}: ${body.slice(0, 200)}`);
+      }
       return res.json();
     }
     throw new Error('Spotify API 429: rate limited after retries');
