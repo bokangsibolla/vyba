@@ -32,7 +32,7 @@ export class SpotifyService implements MusicService {
 
       if (!res.ok) {
         const body = await res.text().catch(() => '');
-        throw new Error(`Spotify API ${res.status}: ${body.slice(0, 200)}`);
+        throw new Error(`Spotify ${res.status} ${path.slice(0, 80)}: ${body.slice(0, 150)}`);
       }
       return res.json();
     }
@@ -55,9 +55,9 @@ export class SpotifyService implements MusicService {
 
   async searchTracks(query: string, limit = 10): Promise<MusicTrack[]> {
     const q = encodeURIComponent(query);
-    const data = await this.fetch<{ tracks: { items: SpotifyRawTrack[] } }>(
-      `/search?q=${q}&type=track&limit=${limit}`
-    );
+    const url = `/search?q=${q}&type=track&limit=${Math.min(limit, 10)}`;
+    console.log('[vyba] Search URL:', url);
+    const data = await this.fetch<{ tracks: { items: SpotifyRawTrack[] } }>(url);
     return data.tracks.items.map(toMusicTrack);
   }
 
