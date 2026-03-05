@@ -73,11 +73,6 @@ export default function OrbitPage() {
     localStorage.setItem('vyba_service', resolved.service);
 
     runDiscoveryEngine(ms, handleProgress)
-      .then((orbits) => {
-        if (orbits.length === 0 && !engineState.error) {
-          setError('No orbits could be built. Try logging out and back in.');
-        }
-      })
       .catch((e) => {
         console.error('[vyba] Engine error:', e);
         setError(e.message || 'Failed to load your music data');
