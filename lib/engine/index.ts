@@ -147,7 +147,7 @@ export async function runDiscoveryEngine(
   // Get all genres from user's artists
   const userGenres = new Map<string, number>();
   for (const a of allUserArtists) {
-    for (const g of a.genres) {
+    for (const g of (a.genres ?? [])) {
       userGenres.set(g.toLowerCase(), (userGenres.get(g.toLowerCase()) || 0) + 1);
     }
   }
