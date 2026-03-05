@@ -1,25 +1,16 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import styles from './DiscoveryLoading.module.css';
+import { SignalProgress } from '@/lib/engine/types';
 
-const messages = [
-  'Listening to your library...',
-  'Finding the good stuff...',
-  'Digging deeper...',
-  'Almost there...',
-];
+interface Props {
+  progress?: SignalProgress[];
+}
 
-export default function DiscoveryLoading() {
-  const [msgIndex, setMsgIndex] = useState(0);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setMsgIndex((i) => (i + 1) % messages.length);
-    }, 3000);
-    return () => clearInterval(interval);
-  }, []);
+export default function DiscoveryLoading({ progress }: Props) {
+  const currentStep = progress?.find(p => p.status === 'loading');
+  const displayLabel = currentStep?.label ?? 'Listening to your library...';
 
   return (
     <div className={styles.container}>
@@ -31,14 +22,29 @@ export default function DiscoveryLoading() {
         vyba
       </motion.div>
       <motion.p
-        key={msgIndex}
+        key={displayLabel}
         className={styles.subtitle}
         initial={{ opacity: 0, y: 4 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
       >
-        {messages[msgIndex]}
+        {displayLabel}
       </motion.p>
+      {progress && progress.length > 0 && (
+        <div className={styles.steps}>
+          {progress.map((step, i) => (
+            <div key={i} className={styles.step}>
+              <span className={styles.stepIcon}>
+                {step.status === 'done' ? '✓' : step.status === 'loading' ? '·' : step.status === 'error' ? '✗' : '○'}
+              </span>
+              <span className={styles.stepLabel}>{step.label}</span>
+              {step.detail && (
+                <span className={styles.stepDetail}> — {step.detail}</span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

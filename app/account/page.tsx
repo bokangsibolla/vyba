@@ -66,6 +66,8 @@ export default function AccountPage() {
     });
     logout();
     localStorage.removeItem('vyba_email');
+    localStorage.removeItem('vyba_first_dig_sent');
+    localStorage.removeItem('vyba_service');
     router.replace('/');
   };
 

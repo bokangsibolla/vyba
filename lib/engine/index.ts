@@ -148,21 +148,20 @@ export async function runDiscoveryEngine(
   }
 
   // Fetch the FULL library (saved tracks, followed artists, recent plays)
-  let libraryLoaded = false;
-  try {
-    const library = await musicService.getLibraryExclusions();
-    for (const id of library.trackIds) knownTrackIds.add(id);
-    for (const id of library.artistIds) knownArtistIds.add(id);
-    for (const name of library.artistNames) knownArtistNames.add(name);
-    libraryLoaded = library.trackIds.size > 0 || library.artistNames.size > 0;
+  // This MUST succeed — if it fails, the entire algorithm is broken
+  const library = await musicService.getLibraryExclusions();
+  for (const id of library.trackIds) knownTrackIds.add(id);
+  for (const id of library.artistIds) knownArtistIds.add(id);
+  for (const name of library.artistNames) knownArtistNames.add(name);
 
-    progress = updateProgress(progress, 1, 'done',
-      `${knownTrackIds.size} tracks, ${knownArtistNames.size} artists excluded`);
-    emit();
-  } catch {
-    progress = updateProgress(progress, 1, 'done', 'Using top tracks only');
-    emit();
+  const libraryLoaded = library.trackIds.size > 0 || library.artistNames.size > 0;
+  if (!libraryLoaded) {
+    console.warn('[vyba] WARNING: Library exclusions returned empty — scopes may be missing');
   }
+
+  progress = updateProgress(progress, 1, 'done',
+    `${knownTrackIds.size} tracks, ${knownArtistNames.size} artists excluded`);
+  emit();
 
   console.log(`[vyba] Exclusion list: ${knownTrackIds.size} tracks, ${knownArtistNames.size} artists (library loaded: ${libraryLoaded})`);
 
@@ -385,13 +384,8 @@ export async function runDiscoveryEngine(
     for (const t of bucket) allCandidateIds.add(t.id);
   }
 
-  let inLibrary = new Set<string>();
-  try {
-    inLibrary = await musicService.checkTracksInLibrary(Array.from(allCandidateIds));
-    console.log(`[vyba] Library verification: ${inLibrary.size}/${allCandidateIds.size} tracks already in library`);
-  } catch {
-    console.log('[vyba] Library verification failed, continuing with artist-name filter only');
-  }
+  const inLibrary = await musicService.checkTracksInLibrary(Array.from(allCandidateIds));
+  console.log(`[vyba] Library verification: ${inLibrary.size}/${allCandidateIds.size} tracks already in library`);
 
   for (const id of inLibrary) knownTrackIds.add(id);
 

@@ -240,3 +240,90 @@
   border-color: #8A7E6E;
   color: #F0DFC8;
 }
+
+/* Instagram-shareable card */
+.shareCard {
+  background: linear-gradient(135deg, #1A1714 0%, #252119 50%, #1A1714 100%);
+  border: 2px solid #3D362C;
+  border-radius: 16px;
+  padding: 40px 24px;
+  margin: 32px 0;
+  text-align: center;
+  aspect-ratio: 1 / 1;
+  max-width: 400px;
+  margin-left: auto;
+  margin-right: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+}
+
+.shareCardLabel {
+  font-family: 'Space Mono', monospace;
+  font-size: 10px;
+  color: #5A5347;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin: 0 0 16px;
+}
+
+.shareCardLogo {
+  font-family: 'Space Mono', monospace;
+  font-size: 36px;
+  font-weight: 700;
+  color: #E8622B;
+  letter-spacing: 0.04em;
+  margin: 0 0 4px;
+}
+
+.shareCardName {
+  font-family: 'Space Mono', monospace;
+  font-size: 11px;
+  color: #D4A853;
+  letter-spacing: 0.08em;
+  margin: 0 0 20px;
+}
+
+.shareCardDivider {
+  width: 60px;
+  height: 2px;
+  background: #E8622B;
+  margin: 0 0 20px;
+}
+
+.shareCardStat {
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-size: 20px;
+  color: #F0DFC8;
+  line-height: 1.4;
+  margin: 0 0 16px;
+}
+
+.shareCardOrbits {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px 12px;
+  font-family: 'Space Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  margin: 0 0 16px;
+}
+
+.shareCardDividerFaint {
+  width: 60px;
+  height: 2px;
+  background: #3D362C;
+  margin: 0 0 16px;
+}
+
+.shareCardCta {
+  font-family: 'Space Mono', monospace;
+  font-size: 10px;
+  color: #5A5347;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin: 0;
+}

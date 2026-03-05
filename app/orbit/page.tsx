@@ -72,31 +72,38 @@ export default function OrbitPage() {
     musicServiceRef.current = ms;
     localStorage.setItem('vyba_service', resolved.service);
 
-    // Verify the token has library-read scope before running the engine
-    // If not, force re-auth to get the new scopes
-    if (resolved.service === 'spotify') {
-      fetch('https://api.spotify.com/v1/me/tracks?limit=1', {
-        headers: { Authorization: `Bearer ${resolved.token}` },
-      }).then(res => {
-        if (res.status === 403) {
-          console.log('[vyba] Token missing library-read scope, forcing re-auth');
-          logout();
-          router.replace('/');
-          return;
+    const svc = resolved.service;
+    const tok = resolved.token;
+
+    async function verifyAndRun() {
+      // BLOCKING scope check — must pass before engine runs
+      if (svc === 'spotify') {
+        try {
+          const scopeCheck = await fetch('https://api.spotify.com/v1/me/tracks?limit=1', {
+            headers: { Authorization: `Bearer ${tok}` },
+          });
+          if (scopeCheck.status === 403) {
+            console.log('[vyba] Token missing user-library-read scope, forcing re-auth');
+            logout();
+            router.replace('/');
+            return;
+          }
+          console.log('[vyba] Scope check passed — user-library-read is granted');
+        } catch {
+          // Network error, continue anyway
         }
-      }).catch(() => {});
+      }
+
+      const orbits = await runDiscoveryEngine(ms, handleProgress);
+      if (orbits.length === 0 && !engineState.error) {
+        setError('No orbits could be built. Try logging out and back in.');
+      }
     }
 
-    runDiscoveryEngine(ms, handleProgress)
-      .then((orbits) => {
-        if (orbits.length === 0 && !engineState.error) {
-          setError('No orbits could be built. Try logging out and back in.');
-        }
-      })
-      .catch((e) => {
-        console.error('[vyba] Engine error:', e);
-        setError(e.message || 'Failed to load your music data');
-      });
+    verifyAndRun().catch((e) => {
+      console.error('[vyba] Engine error:', e);
+      setError(e.message || 'Failed to load your music data');
+    });
   }, [router, handleProgress]);
 
   // Step 2: Auto-create playlists when discovery completes
@@ -233,7 +240,7 @@ export default function OrbitPage() {
   }
 
   if (phase !== 'done') {
-    return <DiscoveryLoading />;
+    return <DiscoveryLoading progress={engineState.progress} />;
   }
 
   const totalTracks = playlists.reduce((sum, p) => sum + p.trackCount, 0);

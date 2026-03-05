@@ -38,10 +38,10 @@ export const sectionColors = {
 export type SectionId = keyof typeof sectionColors;
 
 export const sectionMeta: Record<SectionId, { label: string; tagline: string }> = {
-  roots:     { label: 'ROOTS',     tagline: 'Where your sound was born' },
-  edges:     { label: 'EDGES',     tagline: 'Where your taste is heading' },
-  crowd:     { label: 'CROWD',     tagline: 'What your people are playing' },
-  blindspot: { label: 'BLINDSPOT', tagline: "Important music you've never touched" },
-  deepwork:  { label: 'DEEP WORK', tagline: 'Disappear for 3 hours' },
-  wildcard:  { label: 'WILDCARD',  tagline: 'Completely outside your bubble' },
+  roots:     { label: 'ROOTS',     tagline: 'The artists who shaped your favorites' },
+  edges:     { label: 'EDGES',     tagline: 'What fans of your music also love' },
+  crowd:     { label: 'CROWD',     tagline: 'New sounds from your emerging genres' },
+  blindspot: { label: 'BLINDSPOT', tagline: "Acclaimed music you haven't found yet" },
+  deepwork:  { label: 'DEEP WORK', tagline: 'Instrumental focus fuel' },
+  wildcard:  { label: 'WILDCARD',  tagline: 'A genre you\'ve never explored' },
 };

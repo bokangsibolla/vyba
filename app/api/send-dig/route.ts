@@ -20,63 +20,73 @@ interface SendDigRequest {
 }
 
 const sectionInfo: Record<string, { bg: string; accent: string; tagline: string }> = {
-  ROOTS:       { bg: '#3A2E1A', accent: '#D4A853', tagline: 'Where your sound was born' },
-  EDGES:       { bg: '#1E2E1A', accent: '#7A9B5A', tagline: 'Where your taste is heading' },
-  CROWD:       { bg: '#3A2218', accent: '#E8622B', tagline: 'What your people are playing' },
-  BLINDSPOT:   { bg: '#1A2A30', accent: '#5A9B9B', tagline: "Important music you've never touched" },
-  'DEEP WORK': { bg: '#26252A', accent: '#8A8494', tagline: 'Disappear for 3 hours' },
-  WILDCARD:    { bg: '#30192A', accent: '#C45A8A', tagline: 'Completely outside your bubble' },
+  ROOTS:       { bg: '#3A2E1A', accent: '#D4A853', tagline: 'The artists who shaped your favorites' },
+  EDGES:       { bg: '#1E2E1A', accent: '#7A9B5A', tagline: 'What fans of your music also love' },
+  CROWD:       { bg: '#3A2218', accent: '#E8622B', tagline: 'New sounds from your emerging genres' },
+  BLINDSPOT:   { bg: '#1A2A30', accent: '#5A9B9B', tagline: "Acclaimed music you haven't found yet" },
+  'DEEP WORK': { bg: '#26252A', accent: '#8A8494', tagline: 'Instrumental focus fuel' },
+  WILDCARD:    { bg: '#30192A', accent: '#C45A8A', tagline: 'A genre you\'ve never explored' },
 };
 
 function buildEmailHtml(name: string, playlists: PlaylistSection[]): string {
+  const totalTracks = playlists.reduce((sum, p) => sum + p.trackCount, 0);
+  const totalPlaylists = playlists.length;
+
+  // Build compact preview sections — only 3 tracks per playlist
   const sections = playlists.map((pl) => {
     const colors = sectionInfo[pl.label] ?? { bg: '#2F2A22', accent: '#8A7E6E', tagline: '' };
+    const preview = pl.tracks.slice(0, 3);
 
-    const trackRows = pl.tracks.map((t, i) => {
+    const trackPreviews = preview.map((t) => {
       const trackLink = t.url
         ? `<a href="${t.url}" style="text-decoration:none;color:inherit;">`
         : '';
       const trackLinkEnd = t.url ? '</a>' : '';
 
-      return `<tr>
-        <td style="padding:6px 8px 6px 0;font-family:Courier,monospace;font-size:11px;color:#5A5347;vertical-align:top;">${String(i + 1).padStart(2, '0')}</td>
-        <td style="padding:6px 0;">
-          ${trackLink}
-          <span style="font-family:Arial,sans-serif;font-size:13px;color:#F0DFC8;">${t.name}</span><br/>
-          <span style="font-family:Arial,sans-serif;font-size:11px;color:#8A7E6E;">${t.artist}</span>
-          ${trackLinkEnd}
-        </td>
-        ${t.url ? `<td style="padding:6px 0 6px 8px;vertical-align:middle;">
-          <a href="${t.url}" style="font-family:Courier,monospace;font-size:10px;color:#E8622B;text-decoration:none;white-space:nowrap;">&#9654; PLAY</a>
-        </td>` : ''}
-      </tr>`;
-    }).join('');
+      return `${trackLink}<span style="font-family:Arial,sans-serif;font-size:13px;color:#F0DFC8;">${t.name}</span> <span style="font-family:Arial,sans-serif;font-size:11px;color:#8A7E6E;">- ${t.artist}</span>${trackLinkEnd}`;
+    }).join('<br/>');
 
     return `
-      <div style="border:2px solid #3D362C;border-radius:12px;overflow:hidden;margin-bottom:20px;background:#252119;">
+      <div style="border:2px solid #3D362C;border-radius:12px;overflow:hidden;margin-bottom:16px;background:#252119;">
         <table cellpadding="0" cellspacing="0" border="0" width="100%">
           <tr>
-            <td style="background:${colors.bg};padding:10px 16px;">
-              <div>
-                <span style="font-family:Courier,monospace;font-size:11px;font-weight:700;letter-spacing:0.1em;color:${colors.accent};text-transform:uppercase;">${pl.label}</span>
-                <span style="font-family:Courier,monospace;font-size:11px;color:${colors.accent};float:right;">${pl.trackCount} tracks</span>
-              </div>
-              ${colors.tagline ? `<div style="font-family:Arial,sans-serif;font-size:12px;color:${colors.accent};opacity:0.6;margin-top:4px;">${colors.tagline}</div>` : ''}
+            <td style="background:${colors.bg};padding:12px 16px;">
+              <div style="font-family:Courier,monospace;font-size:12px;font-weight:700;letter-spacing:0.1em;color:${colors.accent};text-transform:uppercase;">${pl.label}</div>
+              <div style="font-family:Arial,sans-serif;font-size:12px;color:${colors.accent};opacity:0.7;margin-top:2px;">${colors.tagline}</div>
             </td>
           </tr>
           <tr>
             <td style="padding:12px 16px;">
-              <table cellpadding="0" cellspacing="0" border="0" width="100%">${trackRows}</table>
+              ${trackPreviews}
+              <div style="font-family:Courier,monospace;font-size:11px;color:#5A5347;margin-top:8px;">+ ${Math.max(0, pl.trackCount - 3)} more tracks</div>
             </td>
           </tr>
           ${pl.spotifyUrl ? `<tr>
             <td style="padding:0 16px 14px;">
-              <a href="${pl.spotifyUrl}" style="display:inline-block;font-family:Courier,monospace;font-size:12px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#1A1714;background:#E8622B;padding:10px 20px;border-radius:6px;text-decoration:none;">Open playlist</a>
+              <a href="${pl.spotifyUrl}" style="display:inline-block;font-family:Courier,monospace;font-size:11px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#1A1714;background:${colors.accent};padding:8px 16px;border-radius:6px;text-decoration:none;">Open playlist</a>
             </td>
           </tr>` : ''}
         </table>
       </div>`;
   }).join('');
+
+  // Instagram-shareable card — a visually striking summary designed to be screenshotted
+  const playlistNames = playlists.map(p => {
+    const colors = sectionInfo[p.label] ?? { accent: '#8A7E6E' };
+    return `<span style="color:${colors.accent};">${p.label}</span>`;
+  }).join(' &middot; ');
+
+  const shareCard = `
+    <div style="background:linear-gradient(135deg, #1A1714 0%, #252119 50%, #1A1714 100%);border:2px solid #3D362C;border-radius:16px;padding:32px 24px;margin:24px 0;text-align:center;">
+      <div style="font-family:Courier,monospace;font-size:11px;color:#5A5347;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:16px;">YOUR MUSICAL DNA</div>
+      <div style="font-family:Georgia,serif;font-size:32px;color:#E8622B;font-weight:700;letter-spacing:0.04em;margin-bottom:4px;">VYBA</div>
+      <div style="font-family:Courier,monospace;font-size:11px;color:#D4A853;letter-spacing:0.08em;margin-bottom:20px;">BUILT FOR ${name.toUpperCase()}</div>
+      <div style="width:60px;height:2px;background:#E8622B;margin:0 auto 20px;"></div>
+      <div style="font-family:Georgia,serif;font-size:20px;color:#F0DFC8;line-height:1.4;margin-bottom:16px;">${totalPlaylists} playlists. ${totalTracks} tracks.<br/>Zero songs you've heard before.</div>
+      <div style="font-family:Courier,monospace;font-size:10px;color:#5A5347;letter-spacing:0.06em;margin-bottom:12px;">${playlistNames}</div>
+      <div style="width:60px;height:2px;background:#3D362C;margin:0 auto 16px;"></div>
+      <div style="font-family:Courier,monospace;font-size:10px;color:#5A5347;letter-spacing:0.1em;text-transform:uppercase;">Screenshot this &middot; Share to your story</div>
+    </div>`;
 
   return `<!DOCTYPE html>
 <html>
@@ -87,18 +97,20 @@ function buildEmailHtml(name: string, playlists: PlaylistSection[]): string {
     <p style="font-family:Courier,monospace;font-size:11px;color:#D4A853;letter-spacing:0.1em;text-transform:uppercase;margin:6px 0 0;">Your Daily Dig</p>
     <hr style="border:none;border-top:2px solid #3D362C;margin:16px 0 24px;" />
 
-    <h2 style="font-family:Georgia,serif;font-size:26px;font-weight:400;color:#F0DFC8;margin:0 0 8px;line-height:1.2;">
-      Hey ${name}. We dug through your listening history and built you ${playlists.length} playlists.
+    <h2 style="font-family:Georgia,serif;font-size:24px;font-weight:400;color:#F0DFC8;margin:0 0 8px;line-height:1.3;">
+      Hey ${name}. We analyzed your listening and found ${totalTracks} songs you've never heard.
     </h2>
-    <p style="font-family:Courier,monospace;font-size:12px;color:#8A7E6E;letter-spacing:0.04em;margin:0 0 32px;">
-      Each one explores a different angle of your taste. Tap any track to play it.
+    <p style="font-family:Courier,monospace;font-size:12px;color:#8A7E6E;letter-spacing:0.04em;margin:0 0 28px;">
+      ${totalPlaylists} playlists, each digging into a different side of your taste.
     </p>
 
     ${sections}
 
+    ${shareCard}
+
     <hr style="border:none;border-top:1px solid #3D362C;margin:24px 0;" />
     <p style="font-family:Courier,monospace;font-size:11px;color:#5A5347;text-align:center;letter-spacing:0.04em;">
-      vyba · read only · never posts anything
+      vyba &middot; read only &middot; never posts anything
     </p>
   </div>
 </body>
@@ -123,7 +135,7 @@ export async function POST(request: Request) {
     body: JSON.stringify({
       sender: { name: 'VYBA', email: 'sibollabokang@gmail.com' },
       to: [{ email: body.email }],
-      subject: `Your first dig — ${body.playlists.length} playlists built from your listening history`,
+      subject: `Your dig is ready — ${body.playlists.length} playlists of music you've never heard`,
       htmlContent: html,
     }),
   });
