@@ -98,7 +98,140 @@ export class SpotifyService implements MusicService {
     return results.slice(0, limit);
   }
 
+  async getRelatedArtists(artistId: string): Promise<MusicArtist[]> {
+    const data = await this.fetch<{ artists: SpotifyRawArtist[] }>(
+      `/artists/${artistId}/related-artists`
+    );
+    return data.artists.map(toMusicArtist);
+  }
+
+  async getArtistTopTracks(artistId: string): Promise<MusicTrack[]> {
+    const data = await this.fetch<{ tracks: SpotifyRawTrack[] }>(
+      `/artists/${artistId}/top-tracks`
+    );
+    return data.tracks.map(toMusicTrack);
+  }
+
+  async getRecommendations(opts: {
+    seedArtistIds?: string[];
+    seedTrackIds?: string[];
+    seedGenres?: string[];
+    limit?: number;
+  }): Promise<MusicTrack[]> {
+    const params = new URLSearchParams();
+    if (opts.seedArtistIds?.length) params.set('seed_artists', opts.seedArtistIds.slice(0, 5).join(','));
+    if (opts.seedTrackIds?.length) params.set('seed_tracks', opts.seedTrackIds.slice(0, 5).join(','));
+    if (opts.seedGenres?.length) params.set('seed_genres', opts.seedGenres.slice(0, 5).join(','));
+    params.set('limit', String(opts.limit ?? 20));
+
+    // Total seeds must be <= 5
+    const totalSeeds = (opts.seedArtistIds?.length ?? 0) + (opts.seedTrackIds?.length ?? 0) + (opts.seedGenres?.length ?? 0);
+    if (totalSeeds === 0) return [];
+
+    const data = await this.fetch<{ tracks: SpotifyRawTrack[] }>(
+      `/recommendations?${params.toString()}`
+    );
+    return data.tracks.map(toMusicTrack);
+  }
+
+  async getLibraryExclusions(): Promise<{ trackIds: Set<string>; artistIds: Set<string>; artistNames: Set<string> }> {
+    const trackIds = new Set<string>();
+    const artistIds = new Set<string>();
+    const artistNames = new Set<string>();
+
+    // 1. Fetch saved/liked tracks (up to 500 — 10 API calls)
+    try {
+      let offset = 0;
+      const pageSize = 50;
+      for (let page = 0; page < 10; page++) {
+        const data = await this.fetch<{
+          items: { track: SpotifyRawTrack }[];
+          total: number;
+        }>(`/me/tracks?limit=${pageSize}&offset=${offset}`);
+
+        for (const item of data.items) {
+          trackIds.add(item.track.id);
+          for (const artist of item.track.artists) {
+            artistIds.add(artist.id);
+            artistNames.add(artist.name.toLowerCase());
+          }
+        }
+
+        offset += pageSize;
+        if (offset >= data.total || data.items.length < pageSize) break;
+      }
+    } catch {
+      console.log('[vyba] Could not fetch saved tracks for exclusion');
+    }
+
+    // 2. Fetch followed artists (up to 200)
+    try {
+      let after: string | undefined;
+      for (let page = 0; page < 4; page++) {
+        const afterParam = after ? `&after=${after}` : '';
+        const data = await this.fetch<{
+          artists: { items: SpotifyRawArtist[]; cursors?: { after?: string } };
+        }>(`/me/following?type=artist&limit=50${afterParam}`);
+
+        for (const artist of data.artists.items) {
+          artistIds.add(artist.id);
+          artistNames.add(artist.name.toLowerCase());
+        }
+
+        after = data.artists.cursors?.after;
+        if (!after || data.artists.items.length < 50) break;
+      }
+    } catch {
+      console.log('[vyba] Could not fetch followed artists for exclusion');
+    }
+
+    // 3. Fetch recently played (last 50)
+    try {
+      const data = await this.fetch<{
+        items: { track: SpotifyRawTrack }[];
+      }>('/me/player/recently-played?limit=50');
+
+      for (const item of data.items) {
+        trackIds.add(item.track.id);
+        for (const artist of item.track.artists) {
+          artistIds.add(artist.id);
+          artistNames.add(artist.name.toLowerCase());
+        }
+      }
+    } catch {
+      console.log('[vyba] Could not fetch recently played for exclusion');
+    }
+
+    console.log(`[vyba] Library exclusions: ${trackIds.size} tracks, ${artistIds.size} artists`);
+    return { trackIds, artistIds, artistNames };
+  }
+
+  async checkTracksInLibrary(trackIds: string[]): Promise<Set<string>> {
+    const inLibrary = new Set<string>();
+
+    // Spotify allows checking 50 tracks per request
+    for (let i = 0; i < trackIds.length; i += 50) {
+      const batch = trackIds.slice(i, i + 50);
+      try {
+        const ids = batch.join(',');
+        const data = await this.fetch<boolean[]>(
+          `/me/tracks/contains?ids=${ids}`
+        );
+        for (let j = 0; j < batch.length; j++) {
+          if (data[j]) inLibrary.add(batch[j]);
+        }
+      } catch {
+        console.log('[vyba] checkTracksInLibrary failed for batch, skipping');
+      }
+    }
+
+    return inLibrary;
+  }
+
   async createPlaylist(name: string, description: string, trackUris: string[]): Promise<string> {
+    // Dedupe URIs before sending to Spotify
+    const uniqueUris = Array.from(new Set(trackUris));
+
     const createRes = await fetch(`${BASE}/me/playlists`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${this.token}`, 'Content-Type': 'application/json' },
@@ -113,7 +246,7 @@ export class SpotifyService implements MusicService {
     const addRes = await fetch(`${BASE}/playlists/${playlist.id}/items`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${this.token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ uris: trackUris }),
+      body: JSON.stringify({ uris: uniqueUris }),
     });
     if (!addRes.ok) {
       const body = await addRes.text();

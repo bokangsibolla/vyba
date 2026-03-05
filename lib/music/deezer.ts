@@ -61,6 +61,39 @@ export class DeezerService implements MusicService {
     return results.slice(0, limit);
   }
 
+  async getRelatedArtists(_artistId: string): Promise<MusicArtist[]> {
+    // Deezer doesn't have a direct related artists API
+    return [];
+  }
+
+  async getArtistTopTracks(artistId: string): Promise<MusicTrack[]> {
+    try {
+      const data = await this.fetch<{ data: DeezerRawTrack[] }>(`/artist/${artistId}/top?limit=10`);
+      return (data.data ?? []).map(toMusicTrack);
+    } catch {
+      return [];
+    }
+  }
+
+  async getRecommendations(_opts: {
+    seedArtistIds?: string[];
+    seedTrackIds?: string[];
+    seedGenres?: string[];
+    limit?: number;
+  }): Promise<MusicTrack[]> {
+    // Deezer doesn't have a recommendations API
+    return [];
+  }
+
+  async getLibraryExclusions(): Promise<{ trackIds: Set<string>; artistIds: Set<string>; artistNames: Set<string> }> {
+    // Deezer: best-effort with available APIs
+    return { trackIds: new Set(), artistIds: new Set(), artistNames: new Set() };
+  }
+
+  async checkTracksInLibrary(_trackIds: string[]): Promise<Set<string>> {
+    return new Set(); // Deezer doesn't have this API
+  }
+
   async createPlaylist(name: string, _description: string, trackUris: string[]): Promise<string> {
     const res = await fetch(`${BASE}/user/me/playlists?access_token=${this.token}`, {
       method: 'POST',

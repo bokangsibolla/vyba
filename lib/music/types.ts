@@ -29,4 +29,28 @@ export interface MusicService {
   searchTracksByArtist(artistName: string, limit?: number): Promise<MusicTrack[]>;
   discoverByGenres(genres: string[], excludeIds: Set<string>, limit: number): Promise<MusicTrack[]>;
   createPlaylist(name: string, description: string, trackUris: string[]): Promise<string>;
+
+  /** Get artists related to a given artist (Spotify: /artists/{id}/related-artists) */
+  getRelatedArtists(artistId: string): Promise<MusicArtist[]>;
+
+  /** Get an artist's top tracks (Spotify: /artists/{id}/top-tracks) */
+  getArtistTopTracks(artistId: string): Promise<MusicTrack[]>;
+
+  /** Get personalized recommendations from seed artists/tracks/genres */
+  getRecommendations(opts: {
+    seedArtistIds?: string[];
+    seedTrackIds?: string[];
+    seedGenres?: string[];
+    limit?: number;
+  }): Promise<MusicTrack[]>;
+
+  /** Get the user's full saved/liked track IDs and artist IDs for exclusion */
+  getLibraryExclusions(): Promise<{ trackIds: Set<string>; artistIds: Set<string>; artistNames: Set<string> }>;
+
+  /**
+   * Check which tracks from a list are already in the user's library.
+   * Returns a Set of track IDs that ARE in the library (should be excluded).
+   * Uses GET /me/tracks/contains — the ONLY reliable way to check.
+   */
+  checkTracksInLibrary(trackIds: string[]): Promise<Set<string>>;
 }
