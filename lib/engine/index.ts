@@ -134,21 +134,36 @@ export async function runDiscoveryEngine(
   // ============================
   setStep(1, 'loading');
 
-  // Create varied search queries from the user's genres
   const searchQueries: { query: string; label: string }[] = [];
 
-  // From top genres — search for tracks in those genres
-  for (const genre of topGenres.slice(0, 8)) {
-    searchQueries.push({ query: genre, label: genre });
+  if (topGenres.length > 0) {
+    // From top genres
+    for (const genre of topGenres.slice(0, 8)) {
+      searchQueries.push({ query: genre, label: genre });
+    }
+    for (const genre of shuffle(topGenres).slice(0, 4)) {
+      searchQueries.push({ query: `${genre} underground`, label: `${genre} underground` });
+    }
+  } else {
+    // No genres available — use the user's top artist NAMES to find similar music
+    // Search "fans also like [artist]" style queries
+    const topArtistNames = Array.from(knownNames).slice(0, 20);
+    diag.push(`no genres found, using artist-name searches with ${topArtistNames.length} artists`);
+
+    // Search for tracks that aren't BY the known artists but are in their space
+    const broadQueries = [
+      'indie', 'alternative', 'hip hop', 'r&b', 'electronic',
+      'soul', 'jazz', 'rock', 'pop', 'funk',
+      'neo soul', 'trip hop', 'downtempo', 'experimental',
+      'underground hip hop', 'indie rock', 'dream pop',
+      'post punk', 'shoegaze', 'lo-fi', 'chillwave',
+    ];
+    for (const q of shuffle(broadQueries).slice(0, 15)) {
+      searchQueries.push({ query: q, label: q });
+    }
   }
 
-  // Add discovery-oriented queries
-  for (const genre of shuffle(topGenres).slice(0, 4)) {
-    searchQueries.push({ query: `${genre} underground`, label: `${genre} underground` });
-    searchQueries.push({ query: `${genre} new`, label: `${genre} new` });
-  }
-
-  // Wildcard: genres the user doesn't listen to
+  // Wildcard: unexplored genre
   const wildcardGenres = [
     'afrobeats', 'bossa nova', 'city pop', 'amapiano', 'shoegaze',
     'dub', 'highlife', 'cumbia', 'grime', 'ethio jazz',
@@ -157,7 +172,7 @@ export async function runDiscoveryEngine(
   const wildcardPick = shuffle(wildcardGenres)[0] ?? 'world music';
   searchQueries.push({ query: wildcardPick, label: `wildcard: ${wildcardPick}` });
 
-  // Ambient/focus queries
+  // Ambient/focus
   searchQueries.push({ query: 'lo-fi chill beats', label: 'focus' });
   searchQueries.push({ query: 'ambient instrumental', label: 'ambient' });
 
@@ -178,7 +193,7 @@ export async function runDiscoveryEngine(
 
   for (const { query, label } of searchQueries) {
     try {
-      const results = await musicService.searchTracks(query, 30);
+      const results = await musicService.searchTracks(query, 20);
       const newOnes = results.filter(isNew);
       allNewTracks.push(...newOnes);
       searchSuccesses++;
