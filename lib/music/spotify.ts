@@ -107,7 +107,7 @@ export class SpotifyService implements MusicService {
 
   async getArtistTopTracks(artistId: string): Promise<MusicTrack[]> {
     const data = await this.fetch<{ tracks: SpotifyRawTrack[] }>(
-      `/artists/${artistId}/top-tracks`
+      `/artists/${artistId}/top-tracks?market=US`
     );
     return data.tracks.map(toMusicTrack);
   }

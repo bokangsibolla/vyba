@@ -118,6 +118,7 @@ export async function runDiscoveryEngine(
   const newArtistIds = new Set<string>();
 
   // Get related artists for up to 10 of the user's top artists
+  let relatedErrors = 0;
   for (const artist of shuffle(allUserArtists).slice(0, 10)) {
     try {
       const related = await musicService.getRelatedArtists(artist.id);
@@ -127,7 +128,13 @@ export async function runDiscoveryEngine(
           newArtists.push(r);
         }
       }
-    } catch { /* skip */ }
+    } catch (e) {
+      relatedErrors++;
+      console.log(`[vyba] Failed to get related for ${artist.name}:`, e instanceof Error ? e.message : e);
+    }
+  }
+  if (relatedErrors > 0) {
+    console.log(`[vyba] ${relatedErrors} related-artist fetches failed`);
   }
 
   if (newArtists.length === 0) {
@@ -146,13 +153,20 @@ export async function runDiscoveryEngine(
 
   const allNewTracks: MusicTrack[] = [];
 
+  let trackFetchErrors = 0;
   for (const artist of shuffle(newArtists).slice(0, 40)) {
     try {
       const tracks = await musicService.getArtistTopTracks(artist.id);
       // Double-check: only keep tracks by artists NOT in user's top artists
       const genuinelyNew = tracks.filter(t => !knownNames.has(t.artist.toLowerCase()));
       allNewTracks.push(...genuinelyNew.slice(0, 3));
-    } catch { /* skip */ }
+    } catch (e) {
+      trackFetchErrors++;
+      console.log(`[vyba] Failed to get tracks for ${artist.name}:`, e instanceof Error ? e.message : e);
+    }
+  }
+  if (trackFetchErrors > 0) {
+    console.log(`[vyba] ${trackFetchErrors} artist top-track fetches failed out of ${Math.min(newArtists.length, 40)}`);
   }
 
   const deduped = dedupe(allNewTracks);
