@@ -46,16 +46,34 @@ function makeOrbit(id: OrbitId, tracks: MusicTrack[]): DiscoveryOrbit {
   };
 }
 
+// Spotify-recognized genre seeds (subset that Spotify accepts)
+const SPOTIFY_GENRE_SEEDS = [
+  'acoustic', 'afrobeat', 'alt-rock', 'alternative', 'ambient',
+  'blues', 'bossanova', 'british', 'chill', 'classical',
+  'club', 'country', 'dance', 'deep-house', 'disco',
+  'drum-and-bass', 'dub', 'dubstep', 'edm', 'electro',
+  'electronic', 'folk', 'funk', 'garage', 'gospel',
+  'groove', 'grunge', 'happy', 'hard-rock', 'hardcore',
+  'hip-hop', 'house', 'idm', 'indie', 'indie-pop',
+  'industrial', 'j-pop', 'j-rock', 'jazz', 'k-pop',
+  'latin', 'metal', 'minimal-techno', 'new-age', 'opera',
+  'piano', 'pop', 'punk', 'r-n-b', 'reggae',
+  'reggaeton', 'rock', 'romance', 'sad', 'salsa',
+  'samba', 'shoe-gaze', 'singer-songwriter', 'ska', 'sleep',
+  'soul', 'study', 'synth-pop', 'techno', 'trance',
+  'trip-hop', 'world-music',
+];
+
 export async function runDiscoveryEngine(
   musicService: MusicService,
   onProgress: (state: EngineState) => void,
 ): Promise<DiscoveryOrbit[]> {
-  const diag: string[] = []; // diagnostic log — shown on error
+  const diag: string[] = [];
 
   const progress: SignalProgress[] = [
     { label: 'Loading your top artists', status: 'pending' },
-    { label: 'Finding new artists', status: 'pending' },
-    { label: 'Getting their best songs', status: 'pending' },
+    { label: 'Analyzing your genres', status: 'pending' },
+    { label: 'Discovering new music', status: 'pending' },
     { label: 'Building playlists', status: 'pending' },
   ];
 
@@ -81,123 +99,155 @@ export async function runDiscoveryEngine(
   // ============================
   setStep(0, 'loading');
 
-  let shortArtists: MusicArtist[] = [];
-  let mediumArtists: MusicArtist[] = [];
-  let longArtists: MusicArtist[] = [];
-
-  try {
-    shortArtists = await musicService.getTopArtists('short', 50);
-    diag.push(`short_term artists: ${shortArtists.length}`);
-  } catch (e) {
-    diag.push(`short_term artists FAILED: ${e instanceof Error ? e.message : e}`);
-  }
-
-  try {
-    mediumArtists = await musicService.getTopArtists('medium', 50);
-    diag.push(`medium_term artists: ${mediumArtists.length}`);
-  } catch (e) {
-    diag.push(`medium_term artists FAILED: ${e instanceof Error ? e.message : e}`);
-  }
-
-  try {
-    longArtists = await musicService.getTopArtists('long', 50);
-    diag.push(`long_term artists: ${longArtists.length}`);
-  } catch (e) {
-    diag.push(`long_term artists FAILED: ${e instanceof Error ? e.message : e}`);
-  }
-
+  let allUserArtists: MusicArtist[] = [];
   const knownNames = new Set<string>();
-  const knownIds = new Set<string>();
-  const allUserArtists: MusicArtist[] = [];
 
-  for (const a of [...shortArtists, ...mediumArtists, ...longArtists]) {
-    if (!knownIds.has(a.id)) {
-      knownIds.add(a.id);
-      knownNames.add(a.name.toLowerCase());
-      allUserArtists.push(a);
+  for (const range of ['short', 'medium', 'long'] as const) {
+    try {
+      const artists = await musicService.getTopArtists(range, 50);
+      diag.push(`${range}_term artists: ${artists.length}`);
+      for (const a of artists) {
+        if (!knownNames.has(a.name.toLowerCase())) {
+          knownNames.add(a.name.toLowerCase());
+          allUserArtists.push(a);
+        }
+      }
+    } catch (e) {
+      diag.push(`${range}_term FAILED: ${e instanceof Error ? e.message : e}`);
     }
   }
 
-  diag.push(`unique user artists: ${allUserArtists.length}`);
+  // Also get top tracks to know track-level exclusions
+  const knownTrackIds = new Set<string>();
+  for (const range of ['short', 'medium', 'long'] as const) {
+    try {
+      const tracks = await musicService.getTopTracks(range, 50);
+      for (const t of tracks) {
+        knownTrackIds.add(t.id);
+        knownNames.add(t.artist.toLowerCase());
+      }
+    } catch { /* non-critical */ }
+  }
+
+  diag.push(`unique known artists: ${knownNames.size}`);
+  diag.push(`known track IDs: ${knownTrackIds.size}`);
 
   if (allUserArtists.length === 0) {
     setStep(0, 'error');
-    return fail('No top artists found. Listen to more music on Spotify first.');
+    return fail('No top artists found.');
   }
 
   setStep(0, 'done', `${allUserArtists.length} artists`);
 
   // ============================
-  // Step 2: Find related artists
+  // Step 2: Extract and match genres
   // ============================
   setStep(1, 'loading');
 
-  const newArtists: MusicArtist[] = [];
-  const newArtistIds = new Set<string>();
-  const seedSlice = shuffle(allUserArtists).slice(0, 5); // only 5 to avoid rate limits
-
-  for (const artist of seedSlice) {
-    try {
-      const related = await musicService.getRelatedArtists(artist.id);
-      diag.push(`related to "${artist.name}": ${related.length} artists`);
-      let added = 0;
-      for (const r of related) {
-        if (!knownNames.has(r.name.toLowerCase()) && !newArtistIds.has(r.id)) {
-          newArtistIds.add(r.id);
-          newArtists.push(r);
-          added++;
-        }
-      }
-      diag.push(`  → ${added} new (not in your top artists)`);
-    } catch (e) {
-      diag.push(`related to "${artist.name}" FAILED: ${e instanceof Error ? e.message : e}`);
+  // Get all genres from user's artists
+  const userGenres = new Map<string, number>();
+  for (const a of allUserArtists) {
+    for (const g of a.genres) {
+      userGenres.set(g.toLowerCase(), (userGenres.get(g.toLowerCase()) || 0) + 1);
     }
   }
 
-  diag.push(`total new artists: ${newArtists.length}`);
-
-  if (newArtists.length === 0) {
-    setStep(1, 'error');
-    return fail('Could not find new artists from related artists.');
+  // Match to Spotify's accepted genre seeds
+  const matchedGenres: string[] = [];
+  for (const seed of SPOTIFY_GENRE_SEEDS) {
+    // Check if any user genre contains or matches this seed
+    for (const [userGenre] of userGenres) {
+      if (userGenre.includes(seed) || seed.includes(userGenre.replace(/\s+/g, '-'))) {
+        if (!matchedGenres.includes(seed)) {
+          matchedGenres.push(seed);
+        }
+        break;
+      }
+    }
   }
 
-  setStep(1, 'done', `${newArtists.length} new artists`);
+  // Also find genres the user DOESN'T listen to (for wildcard)
+  const unusedGenres = SPOTIFY_GENRE_SEEDS.filter(g => !matchedGenres.includes(g));
+
+  diag.push(`user genres: ${Array.from(userGenres.keys()).slice(0, 10).join(', ')}...`);
+  diag.push(`matched Spotify seeds: ${matchedGenres.join(', ')}`);
+  diag.push(`unused genres available: ${unusedGenres.length}`);
+
+  if (matchedGenres.length === 0) {
+    // Fallback: use broad genres
+    matchedGenres.push('pop', 'rock', 'hip-hop', 'r-n-b', 'electronic');
+    diag.push('using fallback genres');
+  }
+
+  setStep(1, 'done', `${matchedGenres.length} genre seeds`);
 
   // ============================
-  // Step 3: Get top tracks
+  // Step 3: Discover new music via Recommendations + Search
   // ============================
   setStep(2, 'loading');
 
-  const allNewTracks: MusicTrack[] = [];
-  const artistSlice = shuffle(newArtists).slice(0, 20); // only 20 to avoid rate limits
-  let trackErrors = 0;
+  const isNew = (t: MusicTrack) =>
+    !knownTrackIds.has(t.id) && !knownNames.has(t.artist.toLowerCase());
 
-  for (const artist of artistSlice) {
+  const allNewTracks: MusicTrack[] = [];
+
+  // Strategy A: Recommendations seeded by genres (multiple batches with different seeds)
+  const genreBatches = shuffle(matchedGenres);
+  for (let i = 0; i < genreBatches.length && allNewTracks.length < 150; i += 2) {
+    const seeds = genreBatches.slice(i, i + 2);
+    if (seeds.length === 0) break;
     try {
-      const tracks = await musicService.getArtistTopTracks(artist.id);
-      const genuinelyNew = tracks.filter(t => !knownNames.has(t.artist.toLowerCase()));
-      allNewTracks.push(...genuinelyNew.slice(0, 3));
-      if (genuinelyNew.length > 0) {
-        diag.push(`"${artist.name}": ${genuinelyNew.length} new tracks`);
-      }
+      const recs = await musicService.getRecommendations({
+        seedGenres: seeds,
+        limit: 50,
+      });
+      const newOnes = recs.filter(isNew);
+      allNewTracks.push(...newOnes);
+      diag.push(`recs [${seeds.join(',')}]: ${recs.length} total, ${newOnes.length} new`);
     } catch (e) {
-      trackErrors++;
-      diag.push(`"${artist.name}" top tracks FAILED: ${e instanceof Error ? e.message : e}`);
+      diag.push(`recs [${seeds.join(',')}] FAILED: ${e instanceof Error ? e.message : e}`);
     }
   }
 
-  diag.push(`track fetch errors: ${trackErrors}/${artistSlice.length}`);
-  diag.push(`total new tracks before dedupe: ${allNewTracks.length}`);
+  // Strategy B: Search for genre terms to find more variety
+  const searchTerms = shuffle(matchedGenres).slice(0, 5);
+  for (const term of searchTerms) {
+    if (allNewTracks.length >= 150) break;
+    try {
+      const results = await musicService.searchTracks(`genre:${term}`, 20);
+      const newOnes = results.filter(isNew);
+      allNewTracks.push(...newOnes);
+      diag.push(`search "${term}": ${results.length} total, ${newOnes.length} new`);
+    } catch (e) {
+      diag.push(`search "${term}" FAILED: ${e instanceof Error ? e.message : e}`);
+    }
+  }
+
+  // Strategy C: Wildcard — unexplored genre
+  const wildcardPick = shuffle(unusedGenres)[0] ?? 'world-music';
+  try {
+    const recs = await musicService.getRecommendations({
+      seedGenres: [wildcardPick],
+      limit: 30,
+    });
+    const newOnes = recs.filter(isNew);
+    allNewTracks.push(...newOnes);
+    diag.push(`wildcard [${wildcardPick}]: ${recs.length} total, ${newOnes.length} new`);
+  } catch (e) {
+    diag.push(`wildcard FAILED: ${e instanceof Error ? e.message : e}`);
+  }
+
+  diag.push(`total new tracks: ${allNewTracks.length}`);
 
   const deduped = dedupe(allNewTracks);
   diag.push(`after dedupe: ${deduped.length}`);
 
   if (deduped.length === 0) {
     setStep(2, 'error');
-    return fail('Found new artists but could not get their tracks.');
+    return fail('Could not find any new music.');
   }
 
-  setStep(2, 'done', `${deduped.length} new songs`);
+  setStep(2, 'done', `${deduped.length} new songs found`);
 
   // ============================
   // Step 4: Split into playlists
@@ -224,22 +274,27 @@ export async function runDiscoveryEngine(
 
   for (const id of orbitIds) {
     const tracks = takeSlice(TARGET_PER_ORBIT);
-    if (tracks.length >= 3) { // lowered from 5 to 3 minimum
-      orbits.push(makeOrbit(id, tracks));
+    if (tracks.length >= 3) {
+      const orbit = makeOrbit(id, tracks);
+      if (id === 'wildcard') {
+        orbit.description = `Today's left turn: ${wildcardPick}`;
+      }
+      orbits.push(orbit);
     }
   }
 
-  diag.push(`orbits built: ${orbits.length}`);
-  diag.push(`total tracks in playlists: ${orbits.reduce((s, o) => s + o.tracks.length, 0)}`);
+  diag.push(`orbits: ${orbits.length}, total tracks: ${orbits.reduce((s, o) => s + o.tracks.length, 0)}`);
 
   if (orbits.length === 0) {
     setStep(3, 'error');
-    return fail('Had tracks but could not build playlists.');
+    return fail('Had tracks but could not fill playlists.');
   }
 
   setStep(3, 'done', `${orbits.length} playlists`);
 
-  console.log('[vyba] Done:', orbits.length, 'playlists');
+  console.log('[vyba] Done:', orbits.length, 'playlists,',
+    orbits.reduce((s, o) => s + o.tracks.length, 0), 'tracks');
+
   onProgress({ orbits, isLoading: false, progress });
   return orbits;
 }
