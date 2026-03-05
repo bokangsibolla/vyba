@@ -32,7 +32,7 @@ export async function redirectToSpotifyAuth(): Promise<void> {
   const hashed = await sha256(codeVerifier);
   const codeChallenge = base64urlEncode(hashed);
 
-  sessionStorage.setItem('spotify_code_verifier', codeVerifier);
+  localStorage.setItem('spotify_code_verifier', codeVerifier);
 
   const params = new URLSearchParams({
     response_type: 'code',
@@ -53,7 +53,7 @@ export async function exchangeCodeForToken(code: string): Promise<{
   expires_in: number;
   scope: string;
 }> {
-  const codeVerifier = sessionStorage.getItem('spotify_code_verifier');
+  const codeVerifier = localStorage.getItem('spotify_code_verifier');
   if (!codeVerifier) throw new Error('No code verifier found');
 
   const res = await fetch('https://accounts.spotify.com/api/token', {
@@ -104,5 +104,5 @@ export function storeToken(token: {
 
 export function logout(): void {
   localStorage.removeItem('vyba_token');
-  sessionStorage.removeItem('spotify_code_verifier');
+  localStorage.removeItem('spotify_code_verifier');
 }
