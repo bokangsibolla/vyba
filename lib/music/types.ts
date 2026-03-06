@@ -9,6 +9,7 @@ export interface MusicTrack {
   externalUrl: string;
   uri: string;
   service: 'spotify' | 'deezer';
+  popularity?: number;
 }
 
 export interface MusicArtist {

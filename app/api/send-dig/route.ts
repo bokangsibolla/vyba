@@ -27,54 +27,56 @@ interface SendDigRequest {
 }
 
 const sectionInfo: Record<string, { accent: string }> = {
-  'warm signal':  { accent: '#D4A853' },
-  'soft drift':   { accent: '#7A9B5A' },
-  'night drive':  { accent: '#E8622B' },
-  'other side':   { accent: '#5A9B9B' },
-  'static':       { accent: '#C45A8A' },
+  'warm signal':  { accent: '#B8860B' },
+  'soft drift':   { accent: '#4A7C4A' },
+  'night drive':  { accent: '#C44B1A' },
+  'other side':   { accent: '#3A7A7A' },
+  'static':       { accent: '#9A3A6A' },
 };
 
 function buildEmailHtml(name: string, playlists: PlaylistSection[], stats?: DigStats): string {
   const totalTracks = playlists.reduce((sum, p) => sum + p.trackCount, 0);
 
-  const hookLine = stats
-    ? `<p style="font-family:Courier,monospace;font-size:11px;color:#5A5347;letter-spacing:0.08em;text-transform:uppercase;margin:0 0 24px;">Dig #${stats.digNumber}${stats.streak > 1 ? ` / ${stats.streak} day streak` : ''}</p>`
+  const digLine = stats
+    ? `<p style="font-family:Courier New,Courier,monospace;font-size:11px;color:#8A7E6E;letter-spacing:0.12em;text-transform:uppercase;margin:0 0 28px;border-bottom:1px solid #E0D8CC;padding-bottom:16px;">No. ${stats.digNumber}${stats.streak > 1 ? ` &mdash; ${stats.streak} day streak` : ''}</p>`
     : '';
 
-  // Simple playlist links — no track previews, no cards, just names you can tap
-  const playlistLinks = playlists.map((pl) => {
-    const colors = sectionInfo[pl.label] ?? { accent: '#8A7E6E' };
+  const playlistRows = playlists.map((pl) => {
+    const colors = sectionInfo[pl.label] ?? { accent: '#5A5347' };
+    // Show first 3 artist names as a taste hint
+    const artistHint = pl.tracks.slice(0, 3).map(t => t.artist).join(' · ');
     return `<tr>
-      <td style="padding:10px 0;">
+      <td style="padding:14px 0;border-bottom:1px solid #EDEBE6;">
         <a href="${pl.spotifyUrl}" style="text-decoration:none;display:block;">
-          <span style="font-family:Courier,monospace;font-size:13px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:${colors.accent};">${pl.label}</span>
-          <span style="font-family:Arial,sans-serif;font-size:12px;color:#5A5347;margin-left:8px;">${pl.trackCount} tracks</span>
+          <span style="font-family:Courier New,Courier,monospace;font-size:12px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${colors.accent};">${pl.label}</span>
+          <span style="font-family:Georgia,serif;font-size:12px;color:#8A7E6E;margin-left:10px;">${pl.trackCount} tracks</span>
+          <p style="font-family:Georgia,serif;font-size:11px;color:#A89F92;margin:4px 0 0;line-height:1.4;font-style:italic;">${artistHint}</p>
         </a>
       </td>
     </tr>`;
   }).join('');
 
   const statsLine = stats
-    ? `<p style="font-family:Courier,monospace;font-size:10px;color:#3D362C;letter-spacing:0.06em;text-transform:uppercase;margin:32px 0 0;">${stats.artistsDiscovered} artists discovered so far</p>`
+    ? `<p style="font-family:Courier New,Courier,monospace;font-size:10px;color:#8A7E6E;letter-spacing:0.08em;text-transform:uppercase;margin:28px 0 0;">${stats.artistsDiscovered} artists discovered so far</p>`
     : '';
 
   return `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
-<body style="margin:0;padding:0;background:#1A1714;">
-  <div style="max-width:480px;margin:0 auto;padding:40px 24px;font-family:Arial,sans-serif;">
-    <div style="font-family:Courier,monospace;font-size:20px;font-weight:700;letter-spacing:0.08em;color:#E8622B;margin:0 0 32px;">VYBA</div>
+<body style="margin:0;padding:0;background:#F5F2ED;">
+  <div style="max-width:480px;margin:0 auto;padding:48px 28px;font-family:Georgia,serif;">
+    <div style="font-family:Courier New,Courier,monospace;font-size:18px;font-weight:700;letter-spacing:0.14em;color:#C44B1A;margin:0 0 36px;">VYBA</div>
 
-    ${hookLine}
-    <p style="font-family:Georgia,serif;font-size:20px;font-weight:400;color:#F0DFC8;margin:0 0 8px;line-height:1.3;">Hey ${name}.</p>
-    <p style="font-family:Georgia,serif;font-size:15px;font-weight:400;color:#8A7E6E;margin:0 0 32px;line-height:1.5;">${totalTracks} tracks across ${playlists.length} playlists. All queued up, just hit play.</p>
+    ${digLine}
+    <p style="font-family:Georgia,serif;font-size:22px;font-weight:400;color:#2A2520;margin:0 0 6px;line-height:1.3;">Hey ${name}.</p>
+    <p style="font-family:Georgia,serif;font-size:14px;font-weight:400;color:#5A5347;margin:0 0 32px;line-height:1.6;">${totalTracks} tracks across ${playlists.length} playlists. Tap any to open in Spotify.</p>
 
-    <table cellpadding="0" cellspacing="0" border="0" width="100%" style="border-top:1px solid #2E2924;">
-      ${playlistLinks}
+    <table cellpadding="0" cellspacing="0" border="0" width="100%" style="border-top:1px solid #D6D0C6;">
+      ${playlistRows}
     </table>
 
     ${statsLine}
-    <p style="font-family:Courier,monospace;font-size:10px;color:#2E2924;text-align:center;letter-spacing:0.06em;margin:40px 0 0;">vyba</p>
+    <p style="font-family:Courier New,Courier,monospace;font-size:9px;color:#C4BAB0;text-align:center;letter-spacing:0.1em;text-transform:uppercase;margin:44px 0 0;">vyba &mdash; new music, every morning</p>
   </div>
 </body>
 </html>`;

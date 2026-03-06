@@ -56,7 +56,7 @@ export class SpotifyService implements MusicService {
   async searchTracks(query: string): Promise<MusicTrack[]> {
     const q = encodeURIComponent(query);
     const data = await this.fetch<{ tracks: { items: SpotifyRawTrack[] } }>(
-      `/search?q=${q}&type=track`
+      `/search?q=${q}&type=track&limit=50`
     );
     return data.tracks.items.map(toMusicTrack);
   }
@@ -267,6 +267,7 @@ interface SpotifyRawTrack {
   album: { id: string; name: string; images: { url: string }[] };
   uri: string;
   external_urls: { spotify: string };
+  popularity: number;
 }
 
 interface SpotifyRawArtist {
@@ -288,6 +289,7 @@ function toMusicTrack(t: SpotifyRawTrack): MusicTrack {
     externalUrl: t.external_urls.spotify,
     uri: t.uri,
     service: 'spotify',
+    popularity: t.popularity,
   };
 }
 

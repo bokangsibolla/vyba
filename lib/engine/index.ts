@@ -414,10 +414,14 @@ export async function runDiscoveryEngine(
         );
         if (candidates.length === 0) continue;
 
-        // Pick a non-obvious track: skip the first result (most popular),
-        // sample from deeper results
-        const deepCuts = candidates.slice(1);
-        const pick = deepCuts.length > 0 ? pickRandom(deepCuts)! : candidates[0];
+        // Prefer deep cuts: filter out mainstream tracks (popularity > 55)
+        // and pick randomly from the remaining pool
+        const deepCuts = candidates.filter(t => (t.popularity ?? 100) <= 55);
+        const mediumCuts = candidates.filter(t => (t.popularity ?? 100) <= 75);
+        const pool = deepCuts.length >= 3 ? deepCuts
+          : mediumCuts.length >= 2 ? mediumCuts
+          : candidates.slice(1); // last resort: skip only the top result
+        const pick = pool.length > 0 ? pickRandom(pool)! : candidates[candidates.length - 1];
 
         globalSeenTrackIds.add(pick.id);
         globalSeenArtists.add(pick.artist.toLowerCase());

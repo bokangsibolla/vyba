@@ -48,6 +48,7 @@ interface SpotifyTrack {
   album: { name: string; images: { url: string }[] };
   uri: string;
   external_urls: { spotify: string };
+  popularity: number;
 }
 
 interface SpotifyArtist {
@@ -75,7 +76,7 @@ async function getTopTrackIds(token: string, range: string): Promise<Set<string>
 async function searchTracks(token: string, query: string): Promise<SpotifyTrack[]> {
   const q = encodeURIComponent(query);
   const data = await spotifyFetch<{ tracks: { items: SpotifyTrack[] } }>(
-    token, `/search?q=${q}&type=track`
+    token, `/search?q=${q}&type=track&limit=50`
   );
   return data.tracks?.items ?? [];
 }
@@ -337,8 +338,13 @@ async function runEngine(token: string): Promise<OrbitResult[]> {
         );
         if (!candidates.length) continue;
 
-        const deep = candidates.slice(1);
-        const pick = deep.length > 0 ? deep[Math.floor(Math.random() * deep.length)] : candidates[0];
+        // Prefer deep cuts: filter out mainstream tracks (popularity > 55)
+        const deepCuts = candidates.filter(t => (t.popularity ?? 100) <= 55);
+        const mediumCuts = candidates.filter(t => (t.popularity ?? 100) <= 75);
+        const pool = deepCuts.length >= 3 ? deepCuts
+          : mediumCuts.length >= 2 ? mediumCuts
+          : candidates.slice(1);
+        const pick = pool.length > 0 ? pool[Math.floor(Math.random() * pool.length)] : candidates[candidates.length - 1];
         seenTracks.add(pick.id);
         seenArtists.add(pick.artists[0]?.name.toLowerCase() ?? '');
         tracks.push({
@@ -401,6 +407,14 @@ async function refreshSpotifyToken(refreshToken: string, userId: string): Promis
 
 // ===== Email =====
 
+const EMAIL_ACCENTS: Record<string, string> = {
+  warmsignal: '#B8860B',
+  softdrift: '#4A7C4A',
+  nightdrive: '#C44B1A',
+  otherside: '#3A7A7A',
+  static: '#9A3A6A',
+};
+
 function buildEmailHtml(
   name: string,
   orbits: OrbitResult[],
@@ -408,32 +422,34 @@ function buildEmailHtml(
 ): string {
   const totalTracks = orbits.reduce((s, o) => s + o.tracks.length, 0);
 
-  const playlistLinks = orbits.map(o => {
-    const meta = SECTION_META[o.id] ?? { accent: '#8A7E6E' };
+  const playlistRows = orbits.map(o => {
+    const accent = EMAIL_ACCENTS[o.id] ?? '#5A5347';
+    const artistHint = o.tracks.slice(0, 3).map(t => t.artist).join(' · ');
     return `<tr>
-      <td style="padding:10px 0;">
+      <td style="padding:14px 0;border-bottom:1px solid #EDEBE6;">
         <a href="${o.spotifyUrl}" style="text-decoration:none;display:block;">
-          <span style="font-family:Courier,monospace;font-size:13px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:${meta.accent};">${o.label}</span>
-          <span style="font-family:Arial,sans-serif;font-size:12px;color:#5A5347;margin-left:8px;">${o.tracks.length} tracks</span>
+          <span style="font-family:Courier New,Courier,monospace;font-size:12px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${accent};">${o.label}</span>
+          <span style="font-family:Georgia,serif;font-size:12px;color:#8A7E6E;margin-left:10px;">${o.tracks.length} tracks</span>
+          <p style="font-family:Georgia,serif;font-size:11px;color:#A89F92;margin:4px 0 0;line-height:1.4;font-style:italic;">${artistHint}</p>
         </a>
       </td>
     </tr>`;
   }).join('');
 
-  const streakText = stats.streak > 1 ? ` / ${stats.streak} day streak` : '';
+  const streakText = stats.streak > 1 ? ` &mdash; ${stats.streak} day streak` : '';
 
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
-<body style="margin:0;padding:0;background:#1A1714;">
-<div style="max-width:480px;margin:0 auto;padding:40px 24px;font-family:Arial,sans-serif;">
-  <div style="font-family:Courier,monospace;font-size:20px;font-weight:700;letter-spacing:0.08em;color:#E8622B;margin:0 0 32px;">VYBA</div>
-  <p style="font-family:Courier,monospace;font-size:11px;color:#5A5347;letter-spacing:0.08em;text-transform:uppercase;margin:0 0 24px;">Dig #${stats.digNumber}${streakText}</p>
-  <p style="font-family:Georgia,serif;font-size:20px;font-weight:400;color:#F0DFC8;margin:0 0 8px;line-height:1.3;">Hey ${name}.</p>
-  <p style="font-family:Georgia,serif;font-size:15px;font-weight:400;color:#8A7E6E;margin:0 0 32px;line-height:1.5;">${totalTracks} tracks across ${orbits.length} playlists. All queued up, just hit play.</p>
-  <table cellpadding="0" cellspacing="0" border="0" width="100%" style="border-top:1px solid #2E2924;">
-    ${playlistLinks}
+<body style="margin:0;padding:0;background:#F5F2ED;">
+<div style="max-width:480px;margin:0 auto;padding:48px 28px;font-family:Georgia,serif;">
+  <div style="font-family:Courier New,Courier,monospace;font-size:18px;font-weight:700;letter-spacing:0.14em;color:#C44B1A;margin:0 0 36px;">VYBA</div>
+  <p style="font-family:Courier New,Courier,monospace;font-size:11px;color:#8A7E6E;letter-spacing:0.12em;text-transform:uppercase;margin:0 0 28px;border-bottom:1px solid #E0D8CC;padding-bottom:16px;">No. ${stats.digNumber}${streakText}</p>
+  <p style="font-family:Georgia,serif;font-size:22px;font-weight:400;color:#2A2520;margin:0 0 6px;line-height:1.3;">Hey ${name}.</p>
+  <p style="font-family:Georgia,serif;font-size:14px;font-weight:400;color:#5A5347;margin:0 0 32px;line-height:1.6;">${totalTracks} tracks across ${orbits.length} playlists. Tap any to open in Spotify.</p>
+  <table cellpadding="0" cellspacing="0" border="0" width="100%" style="border-top:1px solid #D6D0C6;">
+    ${playlistRows}
   </table>
-  <p style="font-family:Courier,monospace;font-size:10px;color:#3D362C;letter-spacing:0.06em;text-transform:uppercase;margin:32px 0 0;">${stats.totalArtists} artists discovered so far</p>
-  <p style="font-family:Courier,monospace;font-size:10px;color:#2E2924;text-align:center;letter-spacing:0.06em;margin:40px 0 0;">vyba</p>
+  <p style="font-family:Courier New,Courier,monospace;font-size:10px;color:#8A7E6E;letter-spacing:0.08em;text-transform:uppercase;margin:28px 0 0;">${stats.totalArtists} artists discovered so far</p>
+  <p style="font-family:Courier New,Courier,monospace;font-size:9px;color:#C4BAB0;text-align:center;letter-spacing:0.1em;text-transform:uppercase;margin:44px 0 0;">vyba &mdash; new music, every morning</p>
 </div></body></html>`;
 }
 
