@@ -56,8 +56,7 @@ function useCountUp(target: number, duration = 1500): number {
 }
 
 function getUniqueClusters(genres: string[]): number {
-  const clusters = new Set(genres.map(g => g.toLowerCase().trim()));
-  return clusters.size;
+  return new Set(genres.map(g => g.toLowerCase().trim())).size;
 }
 
 function getTasteShift(stats: DiscoveryStats): string | null {
@@ -109,32 +108,18 @@ export default function OrbitPage() {
 
     const service = (localStorage.getItem('vyba_service') || 'spotify') as 'spotify' | 'deezer';
 
-    // Check if callback already stored playlists
-    const cached = localStorage.getItem('vyba_playlists');
-    if (cached) {
-      try {
-        const raw = JSON.parse(cached);
-        if (Array.isArray(raw) && raw.length > 0) {
-          setPlaylists(parsePlaylists(raw, service));
-          setPhase('done');
-          localStorage.removeItem('vyba_playlists');
-          // Fetch stats in background
-          fetchStats(email);
-          return;
-        }
-      } catch {
-        // Fall through to API call
-      }
-    }
-
-    // No cached playlists — call /api/discover
     async function runDiscovery() {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 55_000);
+
       try {
         const res = await fetch('/api/discover', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email }),
+          signal: controller.signal,
         });
+        clearTimeout(timeout);
 
         if (!res.ok) {
           const data = await res.json().catch(() => ({ error: 'Discovery failed' }));
@@ -149,32 +134,35 @@ export default function OrbitPage() {
         }
 
         setPhase('done');
-        fetchStats(email!);
+
+        // Fetch stats in background
+        try {
+          const statsRes = await fetch(`/api/stats?email=${encodeURIComponent(email!)}`);
+          if (statsRes.ok) {
+            const s = await statsRes.json();
+            setStats({
+              totalArtists: s.totalArtists,
+              totalTracks: s.totalTracks,
+              totalDigs: s.totalDigs,
+              currentStreak: s.currentStreak,
+              topGenres: s.topGenres,
+              firstGenres: s.firstGenres,
+              latestGenres: s.latestGenres,
+            });
+          }
+        } catch {}
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Something went wrong');
+        clearTimeout(timeout);
+        if (e instanceof DOMException && e.name === 'AbortError') {
+          setError('Discovery is taking too long. Please try again.');
+        } else {
+          setError(e instanceof Error ? e.message : 'Something went wrong');
+        }
       }
     }
 
     runDiscovery();
   }, [router]);
-
-  async function fetchStats(email: string) {
-    try {
-      const statsRes = await fetch(`/api/stats?email=${encodeURIComponent(email)}`);
-      if (statsRes.ok) {
-        const statsData = await statsRes.json();
-        setStats({
-          totalArtists: statsData.totalArtists,
-          totalTracks: statsData.totalTracks,
-          totalDigs: statsData.totalDigs,
-          currentStreak: statsData.currentStreak,
-          topGenres: statsData.topGenres,
-          firstGenres: statsData.firstGenres,
-          latestGenres: statsData.latestGenres,
-        });
-      }
-    } catch {}
-  }
 
   const animatedArtists = useCountUp(stats?.totalArtists ?? 0);
 
@@ -193,6 +181,7 @@ export default function OrbitPage() {
                 setError(null);
                 setPhase('loading');
                 setPlaylists([]);
+                window.location.reload();
               }}
             >
               Retry

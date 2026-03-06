@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase/client';
 
+export const maxDuration = 60;
+
 const SPOTIFY_BASE = 'https://api.spotify.com/v1';
 const LASTFM_BASE = 'https://ws.audioscrobbler.com/2.0/';
 const CLIENT_ID = process.env.NEXT_PUBLIC_SPOTIFY_CLIENT_ID!;
@@ -60,6 +62,12 @@ async function lastfmGetSimilar(artist: string): Promise<{ name: string; match: 
   }
 }
 
+function artistMatches(trackArtist: string, searchedName: string): boolean {
+  const a = trackArtist.toLowerCase();
+  const b = searchedName.toLowerCase();
+  return a.includes(b) || b.includes(a);
+}
+
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) {
@@ -114,36 +122,29 @@ export async function POST(req: NextRequest) {
     } catch {}
 
     // ========================================
-    // 1. Get top artists from all time ranges
+    // 1. Get top artists + tracks (medium_term only — 2 API calls)
     // ========================================
-    const topArtistNames: string[] = [];
     const knownNames = new Set<string>();
     const knownTrackIds = new Set<string>();
+    const topArtistNames: string[] = [];
 
-    for (const range of ['short_term', 'medium_term', 'long_term']) {
-      try {
-        const data = await spotifyFetch<{ items: { name: string }[] }>(
-          `/me/top/artists?time_range=${range}&limit=30`, token
-        );
-        for (const a of data.items) {
-          const lower = a.name.toLowerCase();
-          if (!knownNames.has(lower)) topArtistNames.push(a.name);
-          knownNames.add(lower);
-        }
-      } catch {}
+    const [artistData, trackData] = await Promise.all([
+      spotifyFetch<{ items: { name: string }[] }>(
+        '/me/top/artists?time_range=medium_term&limit=20', token
+      ).catch(() => ({ items: [] })),
+      spotifyFetch<{ items: { id: string; artists: { name: string }[] }[] }>(
+        '/me/top/tracks?time_range=medium_term&limit=20', token
+      ).catch(() => ({ items: [] })),
+    ]);
+
+    for (const a of artistData.items) {
+      const lower = a.name.toLowerCase();
+      if (!knownNames.has(lower)) topArtistNames.push(a.name);
+      knownNames.add(lower);
     }
-
-    // Also mark top tracks as known so we don't recommend them back
-    for (const range of ['short_term', 'medium_term']) {
-      try {
-        const data = await spotifyFetch<{ items: { id: string; artists: { name: string }[] }[] }>(
-          `/me/top/tracks?time_range=${range}&limit=30`, token
-        );
-        for (const t of data.items) {
-          knownTrackIds.add(t.id);
-          for (const a of t.artists) knownNames.add(a.name.toLowerCase());
-        }
-      } catch {}
+    for (const t of trackData.items) {
+      knownTrackIds.add(t.id);
+      for (const a of t.artists) knownNames.add(a.name.toLowerCase());
     }
 
     if (topArtistNames.length === 0) {
@@ -151,16 +152,14 @@ export async function POST(req: NextRequest) {
     }
 
     // ========================================
-    // 2. Discover via Last.fm — track which seeds lead where
+    // 2. Last.fm: find similar artists (10 seeds, 2 parallel batches)
     // ========================================
-    const seeds = topArtistNames.slice(0, 15);
+    const seeds = topArtistNames.slice(0, 10);
     const discoveryMap = new Map<string, { name: string; bestMatch: number; seedCount: number }>();
 
-    // 3 batches of 5 in parallel
     for (let i = 0; i < seeds.length; i += 5) {
       const batch = seeds.slice(i, i + 5);
       const results = await Promise.all(batch.map(s => lastfmGetSimilar(s)));
-
       for (const similar of results) {
         for (const { name, match } of similar) {
           const lower = name.toLowerCase();
@@ -177,29 +176,23 @@ export async function POST(req: NextRequest) {
     }
 
     if (discoveryMap.size === 0) {
-      return NextResponse.json({ error: 'No similar artists found' }, { status: 500 });
+      return NextResponse.json({ error: 'No similar artists found via Last.fm' }, { status: 500 });
     }
 
     // ========================================
-    // 3. Rank: multi-seed artists first, then by match score
-    //    Split into 5 tiers for 5 playlists
+    // 3. Rank by multi-seed boost, split into 5 tiers
     // ========================================
     const ranked = Array.from(discoveryMap.values())
-      .map(d => ({
-        ...d,
-        // Artists found via multiple seeds get a boost
-        score: d.bestMatch * (1 + 0.2 * (d.seedCount - 1)),
-      }))
+      .map(d => ({ ...d, score: d.bestMatch * (1 + 0.2 * (d.seedCount - 1)) }))
       .sort((a, b) => b.score - a.score);
 
-    // Split into 5 tiers: warm signal gets the best matches, static gets the wildcards
     const perOrbit = Math.ceil(ranked.length / 5);
     const tiers = Array.from({ length: 5 }, (_, i) =>
       shuffle(ranked.slice(i * perOrbit, (i + 1) * perOrbit))
     );
 
     // ========================================
-    // 4. Search Spotify + create playlists
+    // 4. Search Spotify + create playlists (max 10 searches per orbit)
     // ========================================
     const globalSeenTracks = new Set<string>();
     const globalSeenArtists = new Set<string>();
@@ -217,8 +210,8 @@ export async function POST(req: NextRequest) {
 
       const tracks: SpotifyTrack[] = [];
 
-      for (const artist of tier.slice(0, 20)) {
-        if (tracks.length >= 12) break;
+      for (const artist of tier.slice(0, 10)) {
+        if (tracks.length >= 10) break;
 
         try {
           const q = encodeURIComponent(artist.name);
@@ -226,14 +219,16 @@ export async function POST(req: NextRequest) {
             `/search?q=${q}&type=track&limit=10`, token
           );
 
+          // Filter: must match artist name, not already seen, not in user's library
           const candidates = data.tracks.items.filter(t =>
+            artistMatches(t.artists[0]?.name ?? '', artist.name) &&
             !globalSeenTracks.has(t.id) &&
             !knownTrackIds.has(t.id) &&
             !globalSeenArtists.has(t.artists[0]?.name.toLowerCase() ?? '')
           );
           if (candidates.length === 0) continue;
 
-          // Pick from top 5 randomly — avoids always picking the #1 hit
+          // Pick randomly from top 5
           const pool = candidates.slice(0, 5);
           const pick = pool[Math.floor(Math.random() * pool.length)];
           globalSeenTracks.add(pick.id);

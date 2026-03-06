@@ -8,7 +8,6 @@ function CallbackHandler() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const handled = useRef(false);
-  const [status, setStatus] = useState('Connecting your Spotify...');
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -34,13 +33,12 @@ function CallbackHandler() {
         storeToken(token);
 
         // Grab email from Spotify profile and save to Supabase
-        let email: string | null = null;
         try {
           const me = await fetch('https://api.spotify.com/v1/me', {
             headers: { Authorization: `Bearer ${token.access_token}` },
           }).then(r => r.json());
 
-          email = me.email;
+          const email = me.email;
           if (email) {
             localStorage.setItem('vyba_email', email);
             const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -56,26 +54,6 @@ function CallbackHandler() {
           }
         } catch {
           // Non-blocking
-        }
-
-        // Trigger discovery right after saving the connection
-        if (email) {
-          setStatus('Finding your music...');
-          try {
-            const discoverRes = await fetch('/api/discover', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ email }),
-            });
-            if (discoverRes.ok) {
-              const data = await discoverRes.json();
-              if (data.savedPlaylists) {
-                localStorage.setItem('vyba_playlists', JSON.stringify(data.savedPlaylists));
-              }
-            }
-          } catch {
-            // Discovery is non-blocking — orbit page can retry
-          }
         }
 
         router.replace('/orbit');
@@ -123,7 +101,7 @@ function CallbackHandler() {
   return (
     <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100dvh' }}>
       <p style={{ fontFamily: "'Space Mono', monospace", color: '#999', fontSize: 12, letterSpacing: '0.04em' }}>
-        {status}
+        Connecting your Spotify...
       </p>
     </div>
   );
