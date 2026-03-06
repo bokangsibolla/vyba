@@ -408,50 +408,32 @@ function buildEmailHtml(
 ): string {
   const totalTracks = orbits.reduce((s, o) => s + o.tracks.length, 0);
 
-  const sections = orbits.map(o => {
-    const meta = SECTION_META[o.id] ?? { bg: '#2F2A22', accent: '#8A7E6E' };
-    const preview = o.tracks.slice(0, 3).map(t =>
-      `<span style="font-family:Arial,sans-serif;font-size:13px;color:#F0DFC8;">${t.name}</span> <span style="font-family:Arial,sans-serif;font-size:11px;color:#8A7E6E;">- ${t.artist}</span>`
-    ).join('<br/>');
-
-    return `<div style="border:1px solid #2E2924;border-radius:10px;overflow:hidden;margin-bottom:14px;background:#211E18;">
-      <table cellpadding="0" cellspacing="0" border="0" width="100%">
-        <tr><td style="background:${meta.bg};padding:10px 16px;">
-          <div style="font-family:Courier,monospace;font-size:12px;font-weight:700;letter-spacing:0.1em;color:${meta.accent};text-transform:uppercase;">${o.label}</div>
-        </td></tr>
-        <tr><td style="padding:12px 16px;">${preview}</td></tr>
-        ${o.spotifyUrl ? `<tr><td style="padding:0 16px 14px;">
-          <a href="${o.spotifyUrl}" style="display:inline-block;font-family:Courier,monospace;font-size:11px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#1A1714;background:${meta.accent};padding:8px 16px;border-radius:6px;text-decoration:none;">Open playlist</a>
-        </td></tr>` : ''}
-      </table>
-    </div>`;
+  const playlistLinks = orbits.map(o => {
+    const meta = SECTION_META[o.id] ?? { accent: '#8A7E6E' };
+    return `<tr>
+      <td style="padding:10px 0;">
+        <a href="${o.spotifyUrl}" style="text-decoration:none;display:block;">
+          <span style="font-family:Courier,monospace;font-size:13px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:${meta.accent};">${o.label}</span>
+          <span style="font-family:Arial,sans-serif;font-size:12px;color:#5A5347;margin-left:8px;">${o.tracks.length} tracks</span>
+        </a>
+      </td>
+    </tr>`;
   }).join('');
+
+  const streakText = stats.streak > 1 ? ` / ${stats.streak} day streak` : '';
 
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
 <body style="margin:0;padding:0;background:#1A1714;">
-<div style="max-width:560px;margin:0 auto;padding:40px 20px;font-family:Arial,sans-serif;">
-  <div style="font-family:Courier,monospace;font-size:22px;font-weight:700;letter-spacing:0.08em;color:#E8622B;margin:0 0 32px;">VYBA</div>
-  <p style="font-family:Courier,monospace;font-size:12px;color:#5A5347;letter-spacing:0.06em;text-transform:uppercase;margin:0 0 20px;">Dig #${stats.digNumber}. ${stats.streak} day streak.</p>
-  <p style="font-family:Georgia,serif;font-size:22px;font-weight:400;color:#F0DFC8;margin:0 0 6px;line-height:1.3;">Hey ${name}.</p>
-  <p style="font-family:Georgia,serif;font-size:16px;font-weight:400;color:#A89E8E;margin:0 0 28px;line-height:1.5;">We went through your listening and pulled ${totalTracks} songs you've never heard. ${orbits.length} playlists, all new artists.</p>
-  <table cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:0 0 28px;border:1px solid #2E2924;border-radius:10px;overflow:hidden;background:#1E1B17;">
-    <tr>
-      <td style="padding:20px 24px;text-align:center;">
-        <div style="font-family:Georgia,serif;font-size:36px;color:#F0DFC8;line-height:1;">${stats.totalArtists}</div>
-        <div style="font-family:Courier,monospace;font-size:10px;color:#5A5347;letter-spacing:0.1em;text-transform:uppercase;margin-top:4px;">artists discovered</div>
-      </td>
-      <td style="padding:20px 24px;text-align:center;border-left:1px solid #2E2924;">
-        <div style="font-family:Courier,monospace;font-size:20px;font-weight:700;color:${stats.streak > 1 ? '#E8622B' : '#F0DFC8'};line-height:1;">${stats.streak}</div>
-        <div style="font-family:Courier,monospace;font-size:10px;color:#5A5347;letter-spacing:0.1em;text-transform:uppercase;margin-top:4px;">day streak</div>
-      </td>
-      <td style="padding:20px 24px;text-align:center;border-left:1px solid #2E2924;">
-        <div style="font-family:Courier,monospace;font-size:20px;font-weight:700;color:#F0DFC8;line-height:1;">#${stats.digNumber}</div>
-        <div style="font-family:Courier,monospace;font-size:10px;color:#5A5347;letter-spacing:0.1em;text-transform:uppercase;margin-top:4px;">dig</div>
-      </td>
-    </tr>
+<div style="max-width:480px;margin:0 auto;padding:40px 24px;font-family:Arial,sans-serif;">
+  <div style="font-family:Courier,monospace;font-size:20px;font-weight:700;letter-spacing:0.08em;color:#E8622B;margin:0 0 32px;">VYBA</div>
+  <p style="font-family:Courier,monospace;font-size:11px;color:#5A5347;letter-spacing:0.08em;text-transform:uppercase;margin:0 0 24px;">Dig #${stats.digNumber}${streakText}</p>
+  <p style="font-family:Georgia,serif;font-size:20px;font-weight:400;color:#F0DFC8;margin:0 0 8px;line-height:1.3;">Hey ${name}.</p>
+  <p style="font-family:Georgia,serif;font-size:15px;font-weight:400;color:#8A7E6E;margin:0 0 32px;line-height:1.5;">${totalTracks} tracks across ${orbits.length} playlists. All queued up, just hit play.</p>
+  <table cellpadding="0" cellspacing="0" border="0" width="100%" style="border-top:1px solid #2E2924;">
+    ${playlistLinks}
   </table>
-  ${sections}
-  <p style="font-family:Courier,monospace;font-size:11px;color:#3D362C;text-align:center;letter-spacing:0.06em;margin:32px 0 0;">vyba</p>
+  <p style="font-family:Courier,monospace;font-size:10px;color:#3D362C;letter-spacing:0.06em;text-transform:uppercase;margin:32px 0 0;">${stats.totalArtists} artists discovered so far</p>
+  <p style="font-family:Courier,monospace;font-size:10px;color:#2E2924;text-align:center;letter-spacing:0.06em;margin:40px 0 0;">vyba</p>
 </div></body></html>`;
 }
 
@@ -464,7 +446,7 @@ async function sendEmail(email: string, name: string, orbits: OrbitResult[], sta
     body: JSON.stringify({
       sender: { name: 'VYBA', email: 'sibollabokang@gmail.com' },
       to: [{ email }],
-      subject: `dig #${stats.digNumber} is ready`,
+      subject: stats.streak > 1 ? `dig #${stats.digNumber} / ${stats.streak} day streak` : `dig #${stats.digNumber} is ready`,
       htmlContent: html,
     }),
   });
