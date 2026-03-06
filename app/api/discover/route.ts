@@ -42,11 +42,11 @@ async function refreshAccessToken(refreshToken: string): Promise<string> {
   return data.access_token;
 }
 
-async function lastfmGetSimilar(artist: string): Promise<string[]> {
+async function lastfmGetSimilar(artist: string): Promise<{ name: string; match: number }[]> {
   const url = new URL(LASTFM_BASE);
   url.searchParams.set('method', 'artist.getSimilar');
   url.searchParams.set('artist', artist);
-  url.searchParams.set('limit', '30');
+  url.searchParams.set('limit', '40');
   url.searchParams.set('api_key', LASTFM_KEY);
   url.searchParams.set('format', 'json');
   try {
@@ -54,7 +54,7 @@ async function lastfmGetSimilar(artist: string): Promise<string[]> {
     const data = await res.json();
     const arr = data?.similarartists?.artist;
     if (!Array.isArray(arr)) return [];
-    return arr.map((a: any) => a.name);
+    return arr.map((a: any) => ({ name: a.name, match: parseFloat(a.match) || 0 }));
   } catch {
     return [];
   }
@@ -73,7 +73,6 @@ interface SpotifyTrack {
   id: string;
   name: string;
   artists: { id: string; name: string }[];
-  album: { name: string; images: { url: string }[] };
   uri: string;
   external_urls: { spotify: string };
   popularity: number;
@@ -107,69 +106,101 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Get display name
+    // Display name for email
     let displayName = 'friend';
     try {
       const me = await spotifyFetch<{ display_name?: string }>('/me', token);
       displayName = me.display_name || 'friend';
     } catch {}
 
-    // 1. Get top artists from Spotify
+    // ========================================
+    // 1. Get top artists from all time ranges
+    // ========================================
     const topArtistNames: string[] = [];
     const knownNames = new Set<string>();
     const knownTrackIds = new Set<string>();
 
-    const artistData = await spotifyFetch<{ items: { name: string }[] }>(
-      '/me/top/artists?time_range=medium_term&limit=20', token
-    ).catch(() => ({ items: [] }));
-
-    for (const a of artistData.items) {
-      topArtistNames.push(a.name);
-      knownNames.add(a.name.toLowerCase());
+    for (const range of ['short_term', 'medium_term', 'long_term']) {
+      try {
+        const data = await spotifyFetch<{ items: { name: string }[] }>(
+          `/me/top/artists?time_range=${range}&limit=30`, token
+        );
+        for (const a of data.items) {
+          const lower = a.name.toLowerCase();
+          if (!knownNames.has(lower)) topArtistNames.push(a.name);
+          knownNames.add(lower);
+        }
+      } catch {}
     }
 
-    const trackData = await spotifyFetch<{ items: { id: string; artists: { name: string }[] }[] }>(
-      '/me/top/tracks?time_range=medium_term&limit=20', token
-    ).catch(() => ({ items: [] }));
-
-    for (const t of trackData.items) {
-      knownTrackIds.add(t.id);
-      for (const a of t.artists) knownNames.add(a.name.toLowerCase());
+    // Also mark top tracks as known so we don't recommend them back
+    for (const range of ['short_term', 'medium_term']) {
+      try {
+        const data = await spotifyFetch<{ items: { id: string; artists: { name: string }[] }[] }>(
+          `/me/top/tracks?time_range=${range}&limit=30`, token
+        );
+        for (const t of data.items) {
+          knownTrackIds.add(t.id);
+          for (const a of t.artists) knownNames.add(a.name.toLowerCase());
+        }
+      } catch {}
     }
 
     if (topArtistNames.length === 0) {
       return NextResponse.json({ error: 'No listening data' }, { status: 400 });
     }
 
-    // 2. Get similar artists from Last.fm (just names, no scoring/tagging)
-    const discovered: string[] = [];
-    const seenDiscovered = new Set<string>();
+    // ========================================
+    // 2. Discover via Last.fm — track which seeds lead where
+    // ========================================
+    const seeds = topArtistNames.slice(0, 15);
+    const discoveryMap = new Map<string, { name: string; bestMatch: number; seedCount: number }>();
 
-    // Query Last.fm for top 10 seed artists in parallel
-    const seeds = topArtistNames.slice(0, 10);
-    const similarResults = await Promise.all(seeds.map(name => lastfmGetSimilar(name)));
+    // 3 batches of 5 in parallel
+    for (let i = 0; i < seeds.length; i += 5) {
+      const batch = seeds.slice(i, i + 5);
+      const results = await Promise.all(batch.map(s => lastfmGetSimilar(s)));
 
-    for (const similar of similarResults) {
-      for (const name of similar) {
-        const lower = name.toLowerCase();
-        if (knownNames.has(lower) || seenDiscovered.has(lower)) continue;
-        seenDiscovered.add(lower);
-        discovered.push(name);
+      for (const similar of results) {
+        for (const { name, match } of similar) {
+          const lower = name.toLowerCase();
+          if (knownNames.has(lower)) continue;
+          const existing = discoveryMap.get(lower);
+          if (existing) {
+            existing.seedCount++;
+            existing.bestMatch = Math.max(existing.bestMatch, match);
+          } else {
+            discoveryMap.set(lower, { name, bestMatch: match, seedCount: 1 });
+          }
+        }
       }
     }
 
-    if (discovered.length === 0) {
+    if (discoveryMap.size === 0) {
       return NextResponse.json({ error: 'No similar artists found' }, { status: 500 });
     }
 
-    // 3. Shuffle and split into 5 groups for 5 playlists
-    const shuffled = shuffle(discovered);
-    const perOrbit = Math.ceil(shuffled.length / 5);
-    const groups = Array.from({ length: 5 }, (_, i) =>
-      shuffled.slice(i * perOrbit, (i + 1) * perOrbit)
+    // ========================================
+    // 3. Rank: multi-seed artists first, then by match score
+    //    Split into 5 tiers for 5 playlists
+    // ========================================
+    const ranked = Array.from(discoveryMap.values())
+      .map(d => ({
+        ...d,
+        // Artists found via multiple seeds get a boost
+        score: d.bestMatch * (1 + 0.2 * (d.seedCount - 1)),
+      }))
+      .sort((a, b) => b.score - a.score);
+
+    // Split into 5 tiers: warm signal gets the best matches, static gets the wildcards
+    const perOrbit = Math.ceil(ranked.length / 5);
+    const tiers = Array.from({ length: 5 }, (_, i) =>
+      shuffle(ranked.slice(i * perOrbit, (i + 1) * perOrbit))
     );
 
-    // 4. For each group, search Spotify and create a playlist
+    // ========================================
+    // 4. Search Spotify + create playlists
+    // ========================================
     const globalSeenTracks = new Set<string>();
     const globalSeenArtists = new Set<string>();
 
@@ -181,17 +212,16 @@ export async function POST(req: NextRequest) {
     }[] = [];
 
     for (let i = 0; i < 5; i++) {
-      const group = groups[i];
-      if (!group || group.length === 0) continue;
+      const tier = tiers[i];
+      if (!tier || tier.length === 0) continue;
 
       const tracks: SpotifyTrack[] = [];
 
-      // Search for each artist, pick one track
-      for (const artistName of group.slice(0, 20)) {
-        if (tracks.length >= 15) break;
+      for (const artist of tier.slice(0, 20)) {
+        if (tracks.length >= 12) break;
 
         try {
-          const q = encodeURIComponent(artistName);
+          const q = encodeURIComponent(artist.name);
           const data = await spotifyFetch<{ tracks: { items: SpotifyTrack[] } }>(
             `/search?q=${q}&type=track&limit=10`, token
           );
@@ -203,8 +233,9 @@ export async function POST(req: NextRequest) {
           );
           if (candidates.length === 0) continue;
 
-          // Pick a random track (not always the most popular)
-          const pick = candidates[Math.floor(Math.random() * Math.min(candidates.length, 5))];
+          // Pick from top 5 randomly — avoids always picking the #1 hit
+          const pool = candidates.slice(0, 5);
+          const pick = pool[Math.floor(Math.random() * pool.length)];
           globalSeenTracks.add(pick.id);
           globalSeenArtists.add(pick.artists[0]?.name.toLowerCase() ?? '');
           tracks.push(pick);
@@ -213,7 +244,7 @@ export async function POST(req: NextRequest) {
 
       if (tracks.length < 3) continue;
 
-      // Create Spotify playlist
+      // Create playlist
       try {
         const createRes = await fetch(`${SPOTIFY_BASE}/me/playlists`, {
           method: 'POST',
@@ -250,7 +281,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Could not create playlists' }, { status: 500 });
     }
 
-    // 5. Stats
+    // ========================================
+    // 5. Stats + email
+    // ========================================
     const totalTracks = savedPlaylists.reduce((s, p) => s + p.trackCount, 0);
     const today = new Date().toISOString().slice(0, 10);
     const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
@@ -258,7 +291,6 @@ export async function POST(req: NextRequest) {
     const { data: yesterdayRow } = await supabase
       .from('discovery_stats').select('streak')
       .eq('email', email).eq('dig_date', yesterday).maybeSingle();
-
     const streak = yesterdayRow ? yesterdayRow.streak + 1 : 1;
 
     const uniqueArtists = new Set<string>();
@@ -278,7 +310,6 @@ export async function POST(req: NextRequest) {
     let totalArtistsAll = 0;
     if (allRows) for (const row of allRows) totalArtistsAll += row.artists_discovered;
 
-    // 6. Send email
     try {
       await fetch(new URL('/api/send-dig', req.url).toString(), {
         method: 'POST',
