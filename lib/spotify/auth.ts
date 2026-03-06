@@ -82,16 +82,21 @@ export function getStoredToken(): string | null {
   const data = localStorage.getItem('vyba_token');
   if (!data) return null;
 
-  const parsed = JSON.parse(data);
-  const now = Date.now();
-  const expiresAt = parsed.timestamp + parsed.expires_in * 1000;
+  try {
+    const parsed = JSON.parse(data);
+    const now = Date.now();
+    const expiresAt = parsed.timestamp + parsed.expires_in * 1000;
 
-  if (now >= expiresAt) {
+    if (now >= expiresAt) {
+      localStorage.removeItem('vyba_token');
+      return null;
+    }
+
+    return parsed.access_token;
+  } catch {
     localStorage.removeItem('vyba_token');
     return null;
   }
-
-  return parsed.access_token;
 }
 
 export function storeToken(token: {
