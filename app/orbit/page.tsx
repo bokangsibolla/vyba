@@ -1,13 +1,10 @@
 'use client';
 
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { getStoredToken, logout } from '@/lib/spotify/auth';
 import { getDeezerToken } from '@/lib/deezer/auth';
-import { createMusicService, MusicService } from '@/lib/music';
-import { runDiscoveryEngine } from '@/lib/engine';
-import { EngineState, DiscoveryOrbit } from '@/lib/engine/types';
 import { sectionColors } from '@/lib/tokens';
 import DiscoveryLoading from '@/components/DiscoveryLoading';
 import Logo from '@/components/Logo';
@@ -79,148 +76,78 @@ function getTasteShift(stats: DiscoveryStats): string | null {
   return `started in ${from}. now exploring ${to}.`;
 }
 
-function resolveService(): { service: 'spotify' | 'deezer'; token: string } | null {
-  const spotifyToken = getStoredToken();
-  if (spotifyToken) return { service: 'spotify', token: spotifyToken };
-
-  const deezerToken = getDeezerToken();
-  if (deezerToken) return { service: 'deezer', token: deezerToken };
-
-  return null;
-}
+const ORBIT_IDS = ['warmsignal', 'softdrift', 'nightdrive', 'otherside', 'static'];
 
 export default function OrbitPage() {
   const router = useRouter();
-  const [engineState, setEngineState] = useState<EngineState>({
-    orbits: [],
-    isLoading: true,
-    progress: [],
-  });
   const [error, setError] = useState<string | null>(null);
   const [playlists, setPlaylists] = useState<SavedPlaylist[]>([]);
-  const [phase, setPhase] = useState<'loading' | 'saving' | 'done'>('loading');
+  const [phase, setPhase] = useState<'loading' | 'done'>('loading');
   const [stats, setStats] = useState<DiscoveryStats | null>(null);
   const fetched = useRef(false);
-  const musicServiceRef = useRef<MusicService | null>(null);
 
-  const handleProgress = useCallback((state: EngineState) => {
-    setEngineState(state);
-    if (state.error) setError(state.error);
-  }, []);
-
-  // Step 1: Run discovery
   useEffect(() => {
     if (fetched.current) return;
     fetched.current = true;
 
-    const resolved = resolveService();
-    if (!resolved) {
+    const email = localStorage.getItem('vyba_email');
+    if (!email) {
       router.replace('/');
       return;
     }
 
-    const ms = createMusicService(resolved.service, resolved.token);
-    musicServiceRef.current = ms;
-    localStorage.setItem('vyba_service', resolved.service);
+    const service = (localStorage.getItem('vyba_service') || 'spotify') as 'spotify' | 'deezer';
 
-    runDiscoveryEngine(ms, handleProgress)
-      .catch((e) => {
-        console.error('[vyba] Engine error:', e);
-        setError(e.message || 'Failed to load your music data');
-      });
-  }, [router, handleProgress]);
+    async function runDiscovery() {
+      try {
+        const res = await fetch('/api/discover', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email }),
+        });
 
-  // Step 2: Auto-create playlists when discovery completes
-  useEffect(() => {
-    if (engineState.isLoading || phase !== 'loading') return;
-    const readyOrbits = engineState.orbits.filter((o) => o.status === 'ready' && o.tracks.length > 0);
-    if (readyOrbits.length === 0) return;
-
-    const ms = musicServiceRef.current;
-    if (!ms) return;
-
-    setPhase('saving');
-
-    async function saveAll(orbits: DiscoveryOrbit[], musicSvc: MusicService) {
-      const saved: SavedPlaylist[] = [];
-      const errors: string[] = [];
-
-      for (const orbit of orbits) {
-        try {
-          const url = await musicSvc.createPlaylist(
-            `${orbit.label} · vyba`,
-            orbit.description,
-            orbit.tracks.map((t) => t.uri)
-          );
-
-          // Extract playlist ID from URL
-          let playlistId = '';
-          if (musicSvc.service === 'deezer') {
-            playlistId = url.split('/playlist/')[1] ?? '';
-          } else {
-            playlistId = url.split('/playlist/')[1]?.split('?')[0] ?? '';
-          }
-
-          saved.push({
-            orbitId: orbit.id,
-            label: orbit.label,
-            playlistId,
-            url,
-            trackCount: orbit.tracks.length,
-            tracks: orbit.tracks.map((t) => ({
-              name: t.name,
-              artist: t.artist,
-              url: t.externalUrl,
-            })),
-            service: musicSvc.service,
-          });
-        } catch (e) {
-          errors.push(`${orbit.label}: ${e instanceof Error ? e.message : 'Unknown error'}`);
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({ error: 'Discovery failed' }));
+          setError(data.error || `Server error ${res.status}`);
+          return;
         }
-      }
 
-      if (saved.length === 0 && errors.length > 0) {
-        const is403 = errors.some(e => e.includes('403'));
-        const hint = is403 ? ' Try logging out and back in to grant playlist permissions.' : '';
-        setError(`Could not create playlists. ${errors[0]}${hint}`);
-        return;
-      }
+        const data = await res.json();
 
-      setPlaylists(saved);
-      setPhase('done');
+        // The /api/discover route returns { ok, playlists: count, tracks: count }
+        // but it already created the playlists in Spotify. We need to get the playlist URLs.
+        // The route doesn't return playlist details, so let's fetch from Spotify directly
+        // OR we modify the route to return them. Let's check what we got:
+        if (data.playlistDetails) {
+          // If the route returns details
+          const saved: SavedPlaylist[] = data.playlistDetails.map((pl: any, i: number) => ({
+            orbitId: ORBIT_IDS[i] || 'warmsignal',
+            label: pl.label,
+            playlistId: pl.spotifyUrl?.split('/playlist/')[1]?.split('?')[0] ?? '',
+            url: pl.spotifyUrl,
+            trackCount: pl.trackCount,
+            tracks: pl.tracks ?? [],
+            service,
+          }));
+          setPlaylists(saved);
+        } else if (data.savedPlaylists) {
+          const saved: SavedPlaylist[] = data.savedPlaylists.map((pl: any, i: number) => ({
+            orbitId: ORBIT_IDS[i] || 'warmsignal',
+            label: pl.label,
+            playlistId: pl.spotifyUrl?.split('/playlist/')[1]?.split('?')[0] ?? '',
+            url: pl.spotifyUrl,
+            trackCount: pl.trackCount,
+            tracks: pl.tracks ?? [],
+            service,
+          }));
+          setPlaylists(saved);
+        }
 
-      // Track discovery stats
-      const email = localStorage.getItem('vyba_email');
-      if (email && saved.length > 0) {
+        setPhase('done');
+
+        // Fetch stats
         try {
-          // Count unique artists across all saved playlists
-          const uniqueArtists = new Set<string>();
-          let totalTracks = 0;
-          const genres: string[] = [];
-
-          for (const pl of saved) {
-            for (const track of pl.tracks) {
-              uniqueArtists.add(track.artist);
-            }
-            totalTracks += pl.trackCount;
-            genres.push(pl.label);
-          }
-
-          // POST stats for this dig
-          await fetch('/api/stats', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              email,
-              artistsDiscovered: uniqueArtists.size,
-              tracksDiscovered: totalTracks,
-              playlistsCreated: saved.length,
-              genres,
-            }),
-          });
-
-          // GET cumulative stats
-          const statsRes = await fetch(`/api/stats?email=${encodeURIComponent(email)}`);
+          const statsRes = await fetch(`/api/stats?email=${encodeURIComponent(email!)}`);
           if (statsRes.ok) {
             const statsData = await statsRes.json();
             setStats({
@@ -233,61 +160,14 @@ export default function OrbitPage() {
               latestGenres: statsData.latestGenres,
             });
           }
-        } catch {
-          // Stats tracking is non-blocking
-        }
-
-        // Send dig email
-        try {
-          let displayName = 'friend';
-
-          if (musicSvc.service === 'spotify') {
-            const resolved = resolveService();
-            if (resolved) {
-              const me = await fetch('https://api.spotify.com/v1/me', {
-                headers: { Authorization: `Bearer ${resolved.token}` },
-              }).then((r) => r.json());
-              displayName = me.display_name || 'friend';
-            }
-          }
-
-          // Fetch latest stats for email
-          let emailStats: { totalDigs: number; totalArtists: number; currentStreak: number } | null = null;
-          try {
-            const sr = await fetch(`/api/stats?email=${encodeURIComponent(email)}`);
-            if (sr.ok) emailStats = await sr.json();
-          } catch {}
-
-          const res = await fetch('/api/send-dig', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              email,
-              displayName,
-              playlists: saved.map((p) => ({
-                label: p.label,
-                spotifyUrl: p.url,
-                trackCount: p.trackCount,
-                tracks: p.tracks,
-              })),
-              stats: emailStats ? {
-                digNumber: emailStats.totalDigs,
-                artistsDiscovered: emailStats.totalArtists,
-                streak: emailStats.currentStreak,
-              } : undefined,
-            }),
-          });
-          if (res.ok) {
-            console.log('[vyba] Dig email sent');
-          }
-        } catch {
-          // Email send is non-blocking
-        }
+        } catch {}
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Something went wrong');
       }
     }
 
-    saveAll(readyOrbits, ms);
-  }, [engineState.isLoading, engineState.orbits, phase]);
+    runDiscovery();
+  }, [router]);
 
   const animatedArtists = useCountUp(stats?.totalArtists ?? 0);
 
@@ -305,7 +185,7 @@ export default function OrbitPage() {
                 fetched.current = false;
                 setError(null);
                 setPhase('loading');
-                setEngineState({ orbits: [], isLoading: true, progress: [] });
+                setPlaylists([]);
               }}
             >
               Retry
@@ -323,10 +203,9 @@ export default function OrbitPage() {
   }
 
   if (phase !== 'done') {
-    return <DiscoveryLoading progress={engineState.progress} />;
+    return <DiscoveryLoading progress={[]} />;
   }
 
-  // Compute current dig's genre count from saved playlists
   const currentGenreCount = playlists.length;
   const currentTrackCount = playlists.reduce((sum, pl) => sum + pl.trackCount, 0);
   const tasteBreadth = stats ? getUniqueClusters(stats.topGenres) : 0;
@@ -383,10 +262,10 @@ export default function OrbitPage() {
       )}
 
       <div className={styles.playlists}>
-        {playlists.map((pl) => {
+        {playlists.map((pl, i) => {
           const section = sectionColors[pl.orbitId as keyof typeof sectionColors];
           return (
-            <div key={pl.orbitId} className={styles.playlistCard}>
+            <div key={pl.orbitId + i} className={styles.playlistCard}>
               <div
                 className={styles.playlistLabel}
                 style={{ background: section?.bg, color: section?.accent }}
