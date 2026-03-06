@@ -3,8 +3,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { getStoredToken, logout } from '@/lib/spotify/auth';
-import { getDeezerToken } from '@/lib/deezer/auth';
+import { logout } from '@/lib/spotify/auth';
 import { sectionColors } from '@/lib/tokens';
 import DiscoveryLoading from '@/components/DiscoveryLoading';
 import Logo from '@/components/Logo';
@@ -78,6 +77,18 @@ function getTasteShift(stats: DiscoveryStats): string | null {
 
 const ORBIT_IDS = ['warmsignal', 'softdrift', 'nightdrive', 'otherside', 'static'];
 
+function parsePlaylists(raw: any[], service: 'spotify' | 'deezer'): SavedPlaylist[] {
+  return raw.map((pl: any, i: number) => ({
+    orbitId: ORBIT_IDS[i] || 'warmsignal',
+    label: pl.label,
+    playlistId: pl.spotifyUrl?.split('/playlist/')[1]?.split('?')[0] ?? '',
+    url: pl.spotifyUrl,
+    trackCount: pl.trackCount,
+    tracks: pl.tracks ?? [],
+    service,
+  }));
+}
+
 export default function OrbitPage() {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
@@ -98,6 +109,25 @@ export default function OrbitPage() {
 
     const service = (localStorage.getItem('vyba_service') || 'spotify') as 'spotify' | 'deezer';
 
+    // Check if callback already stored playlists
+    const cached = localStorage.getItem('vyba_playlists');
+    if (cached) {
+      try {
+        const raw = JSON.parse(cached);
+        if (Array.isArray(raw) && raw.length > 0) {
+          setPlaylists(parsePlaylists(raw, service));
+          setPhase('done');
+          localStorage.removeItem('vyba_playlists');
+          // Fetch stats in background
+          fetchStats(email);
+          return;
+        }
+      } catch {
+        // Fall through to API call
+      }
+    }
+
+    // No cached playlists — call /api/discover
     async function runDiscovery() {
       try {
         const res = await fetch('/api/discover', {
@@ -114,53 +144,12 @@ export default function OrbitPage() {
 
         const data = await res.json();
 
-        // The /api/discover route returns { ok, playlists: count, tracks: count }
-        // but it already created the playlists in Spotify. We need to get the playlist URLs.
-        // The route doesn't return playlist details, so let's fetch from Spotify directly
-        // OR we modify the route to return them. Let's check what we got:
-        if (data.playlistDetails) {
-          // If the route returns details
-          const saved: SavedPlaylist[] = data.playlistDetails.map((pl: any, i: number) => ({
-            orbitId: ORBIT_IDS[i] || 'warmsignal',
-            label: pl.label,
-            playlistId: pl.spotifyUrl?.split('/playlist/')[1]?.split('?')[0] ?? '',
-            url: pl.spotifyUrl,
-            trackCount: pl.trackCount,
-            tracks: pl.tracks ?? [],
-            service,
-          }));
-          setPlaylists(saved);
-        } else if (data.savedPlaylists) {
-          const saved: SavedPlaylist[] = data.savedPlaylists.map((pl: any, i: number) => ({
-            orbitId: ORBIT_IDS[i] || 'warmsignal',
-            label: pl.label,
-            playlistId: pl.spotifyUrl?.split('/playlist/')[1]?.split('?')[0] ?? '',
-            url: pl.spotifyUrl,
-            trackCount: pl.trackCount,
-            tracks: pl.tracks ?? [],
-            service,
-          }));
-          setPlaylists(saved);
+        if (data.savedPlaylists) {
+          setPlaylists(parsePlaylists(data.savedPlaylists, service));
         }
 
         setPhase('done');
-
-        // Fetch stats
-        try {
-          const statsRes = await fetch(`/api/stats?email=${encodeURIComponent(email!)}`);
-          if (statsRes.ok) {
-            const statsData = await statsRes.json();
-            setStats({
-              totalArtists: statsData.totalArtists,
-              totalTracks: statsData.totalTracks,
-              totalDigs: statsData.totalDigs,
-              currentStreak: statsData.currentStreak,
-              topGenres: statsData.topGenres,
-              firstGenres: statsData.firstGenres,
-              latestGenres: statsData.latestGenres,
-            });
-          }
-        } catch {}
+        fetchStats(email!);
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Something went wrong');
       }
@@ -168,6 +157,24 @@ export default function OrbitPage() {
 
     runDiscovery();
   }, [router]);
+
+  async function fetchStats(email: string) {
+    try {
+      const statsRes = await fetch(`/api/stats?email=${encodeURIComponent(email)}`);
+      if (statsRes.ok) {
+        const statsData = await statsRes.json();
+        setStats({
+          totalArtists: statsData.totalArtists,
+          totalTracks: statsData.totalTracks,
+          totalDigs: statsData.totalDigs,
+          currentStreak: statsData.currentStreak,
+          topGenres: statsData.topGenres,
+          firstGenres: statsData.firstGenres,
+          latestGenres: statsData.latestGenres,
+        });
+      }
+    } catch {}
+  }
 
   const animatedArtists = useCountUp(stats?.totalArtists ?? 0);
 
