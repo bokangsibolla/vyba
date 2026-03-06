@@ -6,10 +6,14 @@ export async function saveSpotifyConnection(
   refreshToken: string,
   expiresIn: number,
   spotifyUserId: string,
+  timezone?: string,
 ) {
+  const upsertData: Record<string, string> = { email: email.toLowerCase() };
+  if (timezone) upsertData.timezone = timezone;
+
   const { data: profile } = await supabase
     .from('profiles')
-    .upsert({ email: email.toLowerCase() }, { onConflict: 'email' })
+    .upsert(upsertData, { onConflict: 'email' })
     .select('id')
     .single();
 

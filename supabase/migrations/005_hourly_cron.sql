@@ -1,0 +1,17 @@
+-- Update cron to run hourly so each user gets their dig at 7am local time.
+-- The edge function filters users by timezone internally.
+--
+-- First remove the old daily schedule if it exists:
+-- select cron.unschedule('daily-dig');
+--
+-- Then create the hourly schedule:
+-- select cron.schedule(
+--   'daily-dig-hourly',
+--   '0 * * * *',
+--   $$
+--   select net.http_post(
+--     url := 'https://pbsblyutqfnhladtqqwy.supabase.co/functions/v1/daily-dig',
+--     headers := '{"Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBic2JseXV0cWZuaGxhZHRxcXd5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI1NDQ3MjQsImV4cCI6MjA4ODEyMDcyNH0.tQfANwCnkkS6aJ5S5HjncpTVt5YK1EGLnmyYj38HZDI"}'::jsonb
+--   );
+--   $$
+-- );

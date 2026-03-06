@@ -41,6 +41,7 @@ function CallbackHandler() {
           const email = me.email;
           if (email) {
             localStorage.setItem('vyba_email', email);
+            const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
             const { saveSpotifyConnection } = await import('@/lib/supabase/connections');
             await saveSpotifyConnection(
               email,
@@ -48,6 +49,7 @@ function CallbackHandler() {
               token.refresh_token,
               token.expires_in,
               me.id,
+              tz,
             );
           }
         } catch {

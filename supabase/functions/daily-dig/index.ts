@@ -470,22 +470,55 @@ async function sendEmail(email: string, name: string, orbits: OrbitResult[], sta
   });
 }
 
+// ===== Timezone filtering =====
+
+function isDeliveryHour(timezone: string, targetHour = 7): boolean {
+  try {
+    const now = new Date();
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: timezone,
+      hour: 'numeric',
+      hour12: false,
+    });
+    const localHour = parseInt(formatter.format(now), 10);
+    return localHour === targetHour;
+  } catch {
+    // Invalid timezone, fall back to UTC check
+    return new Date().getUTCHours() === targetHour;
+  }
+}
+
 // ===== Main handler =====
 
 Deno.serve(async () => {
   const { data: profiles } = await supabase
     .from('profiles')
-    .select('id, email, display_name, connections(service, access_token, refresh_token, expires_at)')
+    .select('id, email, display_name, timezone, connections(service, access_token, refresh_token, expires_at)')
     .not('connections', 'is', null);
 
   if (!profiles?.length) {
-    return new Response(JSON.stringify({ processed: 0, errors: [] }));
+    return new Response(JSON.stringify({ processed: 0, skipped: 0, errors: [] }));
+  }
+
+  // Filter to only users where it's currently 7am in their timezone
+  const eligible = profiles.filter(p => {
+    const tz = (p.timezone as string) || 'UTC';
+    return isDeliveryHour(tz, 7);
+  });
+
+  if (eligible.length === 0) {
+    return new Response(JSON.stringify({
+      processed: 0,
+      skipped: profiles.length,
+      reason: 'No users in the 7am delivery window right now',
+      errors: [],
+    }));
   }
 
   let processed = 0;
   const errors: string[] = [];
 
-  for (const profile of profiles) {
+  for (const profile of eligible) {
     try {
       const connections = (profile as Record<string, unknown>).connections as { service: string; access_token: string; refresh_token: string; expires_at: string }[] ?? [];
       const conn = connections.find((c) => c.service === 'spotify');
@@ -560,7 +593,7 @@ Deno.serve(async () => {
     }
   }
 
-  return new Response(JSON.stringify({ processed, errors }), {
+  return new Response(JSON.stringify({ processed, skipped: profiles.length - eligible.length, errors }), {
     headers: { 'Content-Type': 'application/json' },
   });
 });
