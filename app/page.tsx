@@ -15,33 +15,24 @@ export default function Home() {
       <div className={styles.content}>
         <Logo size={28} />
         <h1 className={styles.tagline}>
-          New music every<br />morning at 6am.
+          Fresh music, every morning.
         </h1>
-        <p className={styles.sub}>
-          Connect Spotify. We do the digging.
-        </p>
 
         {hasToken ? (
           <button className={styles.cta} onClick={() => router.push('/orbit')}>
             Open your orbits
           </button>
         ) : (
-          <>
-            <button className={styles.cta} onClick={redirectToSpotifyAuth}>
-              Connect Spotify
-            </button>
-          </>
-        )}
-
-        {!hasToken && (
-          <button className={styles.loginLink} onClick={redirectToSpotifyAuth}>
-            Already connected? Log in
+          <button className={styles.cta} onClick={redirectToSpotifyAuth}>
+            Connect Spotify
           </button>
         )}
 
-        <p className={styles.note}>
-          read only · never posts anything
-        </p>
+        {!hasToken && (
+          <p className={styles.note}>
+            Read-only. We never post anything.
+          </p>
+        )}
       </div>
     </main>
   );

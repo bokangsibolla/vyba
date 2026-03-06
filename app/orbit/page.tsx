@@ -2,12 +2,13 @@
 
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { motion } from 'framer-motion';
 import { getStoredToken, logout } from '@/lib/spotify/auth';
 import { getDeezerToken } from '@/lib/deezer/auth';
 import { createMusicService, MusicService } from '@/lib/music';
 import { runDiscoveryEngine } from '@/lib/engine';
 import { EngineState, DiscoveryOrbit } from '@/lib/engine/types';
-import { sectionColors, sectionMeta, SectionId } from '@/lib/tokens';
+import { sectionColors } from '@/lib/tokens';
 import DiscoveryLoading from '@/components/DiscoveryLoading';
 import Logo from '@/components/Logo';
 import styles from './page.module.css';
@@ -22,11 +23,60 @@ interface SavedPlaylist {
   service: 'spotify' | 'deezer';
 }
 
+interface DiscoveryStats {
+  totalArtists: number;
+  totalTracks: number;
+  totalDigs: number;
+  currentStreak: number;
+  topGenres: string[];
+  firstGenres?: string[];
+  latestGenres?: string[];
+}
+
 function getEmbedSrc(pl: SavedPlaylist): string {
   if (pl.service === 'deezer') {
     return `https://widget.deezer.com/widget/dark/playlist/${pl.playlistId}`;
   }
   return `https://open.spotify.com/embed/playlist/${pl.playlistId}?utm_source=generator&theme=0`;
+}
+
+function useCountUp(target: number, duration = 1500): number {
+  const [value, setValue] = useState(0);
+  useEffect(() => {
+    if (target === 0) return;
+    const start = performance.now();
+    let raf: number;
+    function tick(now: number) {
+      const elapsed = now - start;
+      const progress = Math.min(elapsed / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setValue(Math.round(eased * target));
+      if (progress < 1) raf = requestAnimationFrame(tick);
+    }
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [target, duration]);
+  return value;
+}
+
+function getUniqueClusters(genres: string[]): number {
+  const clusters = new Set(genres.map(g => g.toLowerCase().trim()));
+  return clusters.size;
+}
+
+function getTasteShift(stats: DiscoveryStats): string | null {
+  if (stats.totalDigs < 3) return null;
+  const first = stats.firstGenres ?? [];
+  const latest = stats.latestGenres ?? [];
+  if (first.length === 0 || latest.length === 0) return null;
+  const firstSet = new Set(first.map(g => g.toLowerCase()));
+  const latestSet = new Set(latest.map(g => g.toLowerCase()));
+  const shifted = [...latestSet].some(g => !firstSet.has(g));
+  if (!shifted) return null;
+  const from = first[0]?.toLowerCase() ?? '';
+  const to = latest.find(g => !firstSet.has(g.toLowerCase()))?.toLowerCase() ?? latest[0]?.toLowerCase() ?? '';
+  if (from === to) return null;
+  return `started in ${from}. now exploring ${to}.`;
 }
 
 function resolveService(): { service: 'spotify' | 'deezer'; token: string } | null {
@@ -49,6 +99,7 @@ export default function OrbitPage() {
   const [error, setError] = useState<string | null>(null);
   const [playlists, setPlaylists] = useState<SavedPlaylist[]>([]);
   const [phase, setPhase] = useState<'loading' | 'saving' | 'done'>('loading');
+  const [stats, setStats] = useState<DiscoveryStats | null>(null);
   const fetched = useRef(false);
   const musicServiceRef = useRef<MusicService | null>(null);
 
@@ -138,10 +189,55 @@ export default function OrbitPage() {
       setPlaylists(saved);
       setPhase('done');
 
-      // Send first dig email (only once)
+      // Track discovery stats
       const email = localStorage.getItem('vyba_email');
-      const alreadySent = localStorage.getItem('vyba_first_dig_sent');
-      if (email && saved.length > 0 && !alreadySent) {
+      if (email && saved.length > 0) {
+        try {
+          // Count unique artists across all saved playlists
+          const uniqueArtists = new Set<string>();
+          let totalTracks = 0;
+          const genres: string[] = [];
+
+          for (const pl of saved) {
+            for (const track of pl.tracks) {
+              uniqueArtists.add(track.artist);
+            }
+            totalTracks += pl.trackCount;
+            genres.push(pl.label);
+          }
+
+          // POST stats for this dig
+          await fetch('/api/stats', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              email,
+              artistsDiscovered: uniqueArtists.size,
+              tracksDiscovered: totalTracks,
+              playlistsCreated: saved.length,
+              genres,
+            }),
+          });
+
+          // GET cumulative stats
+          const statsRes = await fetch(`/api/stats?email=${encodeURIComponent(email)}`);
+          if (statsRes.ok) {
+            const statsData = await statsRes.json();
+            setStats({
+              totalArtists: statsData.totalArtists,
+              totalTracks: statsData.totalTracks,
+              totalDigs: statsData.totalDigs,
+              currentStreak: statsData.currentStreak,
+              topGenres: statsData.topGenres,
+              firstGenres: statsData.firstGenres,
+              latestGenres: statsData.latestGenres,
+            });
+          }
+        } catch {
+          // Stats tracking is non-blocking
+        }
+
+        // Send dig email
         try {
           let displayName = 'friend';
 
@@ -155,6 +251,13 @@ export default function OrbitPage() {
             }
           }
 
+          // Fetch latest stats for email
+          let emailStats: { totalDigs: number; totalArtists: number; currentStreak: number } | null = null;
+          try {
+            const sr = await fetch(`/api/stats?email=${encodeURIComponent(email)}`);
+            if (sr.ok) emailStats = await sr.json();
+          } catch {}
+
           const res = await fetch('/api/send-dig', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -167,10 +270,15 @@ export default function OrbitPage() {
                 trackCount: p.trackCount,
                 tracks: p.tracks,
               })),
+              stats: emailStats ? {
+                digNumber: emailStats.totalDigs,
+                artistsDiscovered: emailStats.totalArtists,
+                streak: emailStats.currentStreak,
+              } : undefined,
             }),
           });
           if (res.ok) {
-            localStorage.setItem('vyba_first_dig_sent', 'true');
+            console.log('[vyba] Dig email sent');
           }
         } catch {
           // Email send is non-blocking
@@ -216,7 +324,12 @@ export default function OrbitPage() {
     return <DiscoveryLoading progress={engineState.progress} />;
   }
 
-  const totalTracks = playlists.reduce((sum, p) => sum + p.trackCount, 0);
+  // Compute current dig's genre count from saved playlists
+  const currentGenreCount = playlists.length;
+  const currentTrackCount = playlists.reduce((sum, pl) => sum + pl.trackCount, 0);
+  const animatedArtists = useCountUp(stats?.totalArtists ?? 0);
+  const tasteBreadth = stats ? getUniqueClusters(stats.topGenres) : 0;
+  const tasteShift = stats ? getTasteShift(stats) : null;
 
   return (
     <main className={styles.main}>
@@ -232,19 +345,41 @@ export default function OrbitPage() {
         </div>
       </header>
 
-      <div className={styles.hero}>
-        <h1 className={styles.heroTitle}>You&apos;re in.</h1>
-        <p className={styles.heroSub}>
-          {playlists.length} playlists built from your listening history.
-          New ones land in your inbox every morning at 6am.
-        </p>
-        <p className={styles.heroExplainer}>
-          Each playlist digs into a different side of your taste — from your roots to music you&apos;ve never heard.
-        </p>
-        <p className={styles.spamNotice}>
-          Check your spam folder for an email from VYBA.
-        </p>
-      </div>
+      {stats && (
+        <motion.div
+          className={styles.signalCard}
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, ease: 'easeOut' }}
+        >
+          <span className={styles.digNumber}>DIG #{stats.totalDigs}</span>
+          <div className={styles.bigNumber}>{animatedArtists}</div>
+          <span className={styles.bigLabel}>artists discovered</span>
+          {tasteBreadth > 0 && (
+            <span className={styles.tasteBreadth}>{tasteBreadth} genre clusters</span>
+          )}
+          <div className={styles.statRow}>
+            <div className={styles.statItem}>
+              <span className={`${styles.statNumber} ${stats.currentStreak > 1 ? styles.streakActive : ''}`}>
+                {stats.currentStreak}
+                {stats.currentStreak > 1 && <span className={styles.onFire}>on fire</span>}
+              </span>
+              <span className={styles.statLabel}>day streak</span>
+            </div>
+            <div className={styles.statItem}>
+              <span className={styles.statNumber}>{currentTrackCount}</span>
+              <span className={styles.statLabel}>new tracks</span>
+            </div>
+            <div className={styles.statItem}>
+              <span className={styles.statNumber}>{currentGenreCount}</span>
+              <span className={styles.statLabel}>genres</span>
+            </div>
+          </div>
+          {tasteShift && (
+            <p className={styles.tasteShift}>{tasteShift}</p>
+          )}
+        </motion.div>
+      )}
 
       <div className={styles.playlists}>
         {playlists.map((pl) => {
@@ -259,16 +394,11 @@ export default function OrbitPage() {
                   <span>{section?.label ?? pl.label}</span>
                   <span className={styles.trackCount}>{pl.trackCount} tracks</span>
                 </div>
-                {sectionMeta[pl.orbitId as SectionId] && (
-                  <span className={styles.playlistTagline}>
-                    {sectionMeta[pl.orbitId as SectionId].tagline}
-                  </span>
-                )}
               </div>
               <iframe
                 src={getEmbedSrc(pl)}
                 width="100%"
-                height="352"
+                height="152"
                 frameBorder="0"
                 allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
                 loading="lazy"
@@ -287,33 +417,9 @@ export default function OrbitPage() {
         })}
       </div>
 
-      {/* Instagram-shareable card */}
-      <div className={styles.shareCard} id="vyba-share-card">
-        <p className={styles.shareCardLabel}>YOUR MUSICAL DNA</p>
-        <p className={styles.shareCardLogo}>VYBA</p>
-        <p className={styles.shareCardName}>BUILT FOR {(localStorage.getItem('vyba_email') ?? 'YOU').split('@')[0].toUpperCase()}</p>
-        <div className={styles.shareCardDivider} />
-        <p className={styles.shareCardStat}>
-          {playlists.length} playlists. {totalTracks} tracks.<br />
-          Zero songs you&apos;ve heard before.
-        </p>
-        <div className={styles.shareCardOrbits}>
-          {playlists.map((pl) => {
-            const section = sectionColors[pl.orbitId as keyof typeof sectionColors];
-            return (
-              <span key={pl.orbitId} style={{ color: section?.accent ?? '#8A7E6E' }}>
-                {section?.label ?? pl.label}
-              </span>
-            );
-          })}
-        </div>
-        <div className={styles.shareCardDividerFaint} />
-        <p className={styles.shareCardCta}>SCREENSHOT THIS &middot; SHARE TO YOUR STORY</p>
-      </div>
-
       <footer className={styles.footer}>
         <p className={styles.footerText}>
-          That&apos;s your first dig. Tomorrow&apos;s will be different — every day is.
+          come back tomorrow
         </p>
       </footer>
     </main>

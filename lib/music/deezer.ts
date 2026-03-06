@@ -27,9 +27,9 @@ export class DeezerService implements MusicService {
     return (data.data ?? []).map(toMusicArtist);
   }
 
-  async searchTracks(query: string, limit = 10): Promise<MusicTrack[]> {
+  async searchTracks(query: string): Promise<MusicTrack[]> {
     const q = encodeURIComponent(query);
-    const data = await this.fetch<{ data: DeezerRawTrack[] }>(`/search?q=${q}&limit=${limit}`);
+    const data = await this.fetch<{ data: DeezerRawTrack[] }>(`/search?q=${q}`);
     return (data.data ?? []).map(toMusicTrack);
   }
 
@@ -39,8 +39,8 @@ export class DeezerService implements MusicService {
     return { shortTerm: artists, mediumTerm: artists, longTerm: artists };
   }
 
-  async searchTracksByArtist(artistName: string, limit = 5): Promise<MusicTrack[]> {
-    return this.searchTracks(`artist:"${artistName}"`, limit);
+  async searchTracksByArtist(artistName: string): Promise<MusicTrack[]> {
+    return this.searchTracks(`artist:"${artistName}"`);
   }
 
   async discoverByGenres(genres: string[], excludeIds: Set<string>, limit = 30): Promise<MusicTrack[]> {
@@ -49,7 +49,7 @@ export class DeezerService implements MusicService {
 
     for (const genre of genres.slice(0, 5)) {
       if (results.length >= limit) break;
-      const tracks = await this.searchTracks(genre, 10);
+      const tracks = await this.searchTracks(genre);
       for (const track of tracks) {
         if (!seen.has(track.id) && !excludeIds.has(track.id)) {
           seen.add(track.id);

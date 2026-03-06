@@ -31,7 +31,7 @@ function AlbumMosaic({ orbit }: { orbit: DiscoveryOrbit }) {
 
 export default function PlaylistCard({ orbit, savedUrl }: Props) {
   const [expanded, setExpanded] = useState(false);
-  const section = sectionColors[orbit.id as keyof typeof sectionColors] ?? sectionColors.roots;
+  const section = sectionColors[orbit.id as keyof typeof sectionColors] ?? sectionColors.warmsignal;
 
   return (
     <div className={styles.card}>

@@ -4,53 +4,38 @@
   justify-content: center;
   align-items: center;
   height: 100dvh;
-  gap: 16px;
-  padding: 24px;
+  gap: 24px;
+}
+
+.ringWrapper {
+  position: relative;
+  width: 88px;
+  height: 88px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ring {
+  position: absolute;
+  top: 0;
+  left: 0;
 }
 
 .logo {
   font-family: 'Space Mono', monospace;
-  font-size: 28px;
+  font-size: 16px;
   font-weight: 700;
   color: #E8622B;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+  position: relative;
+  z-index: 1;
 }
 
 .subtitle {
   font-family: 'Space Mono', monospace;
-  font-size: 12px;
+  font-size: 13px;
   color: #8A7E6E;
-  letter-spacing: 0.04em;
-}
-
-.steps {
-  margin-top: 24px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  max-width: 340px;
-  width: 100%;
-}
-
-.step {
-  font-family: 'Space Mono', monospace;
-  font-size: 10px;
-  color: #8A7E6E;
-  letter-spacing: 0.02em;
-}
-
-.stepIcon {
-  display: inline-block;
-  width: 14px;
-  color: #E8622B;
-}
-
-.stepLabel {
-  color: #8A7E6E;
-}
-
-.stepDetail {
-  color: #5A9B5A;
-  font-size: 9px;
+  letter-spacing: 0.03em;
 }

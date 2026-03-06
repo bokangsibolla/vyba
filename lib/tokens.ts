@@ -27,21 +27,19 @@ export const radius = {
 } as const;
 
 export const sectionColors = {
-  roots:     { bg: '#3A2E1A', accent: '#D4A853', label: 'ROOTS' },
-  edges:     { bg: '#1E2E1A', accent: '#7A9B5A', label: 'EDGES' },
-  crowd:     { bg: '#3A2218', accent: '#E8622B', label: 'CROWD' },
-  blindspot: { bg: '#1A2A30', accent: '#5A9B9B', label: 'BLINDSPOT' },
-  deepwork:  { bg: '#26252A', accent: '#8A8494', label: 'DEEP WORK' },
-  wildcard:  { bg: '#30192A', accent: '#C45A8A', label: 'WILDCARD' },
+  warmsignal:  { bg: '#3A2E1A', accent: '#D4A853', label: 'warm signal' },
+  softdrift:   { bg: '#1E2E1A', accent: '#7A9B5A', label: 'soft drift' },
+  nightdrive:  { bg: '#3A2218', accent: '#E8622B', label: 'night drive' },
+  otherside:   { bg: '#1A2A30', accent: '#5A9B9B', label: 'other side' },
+  static:      { bg: '#30192A', accent: '#C45A8A', label: 'static' },
 } as const;
 
 export type SectionId = keyof typeof sectionColors;
 
 export const sectionMeta: Record<SectionId, { label: string; tagline: string }> = {
-  roots:     { label: 'ROOTS',     tagline: 'The artists who shaped your favorites' },
-  edges:     { label: 'EDGES',     tagline: 'What fans of your music also love' },
-  crowd:     { label: 'CROWD',     tagline: 'New sounds from your emerging genres' },
-  blindspot: { label: 'BLINDSPOT', tagline: "Acclaimed music you haven't found yet" },
-  deepwork:  { label: 'DEEP WORK', tagline: 'Instrumental focus fuel' },
-  wildcard:  { label: 'WILDCARD',  tagline: 'A genre you\'ve never explored' },
+  warmsignal:  { label: 'warm signal',  tagline: 'Artists closest to your frequency' },
+  softdrift:   { label: 'soft drift',   tagline: 'A gentle stretch from your usual' },
+  nightdrive:  { label: 'night drive',  tagline: 'Deeper cuts, darker moods' },
+  otherside:   { label: 'other side',   tagline: 'Different energy entirely' },
+  static:      { label: 'static',       tagline: 'The furthest out we could find' },
 };

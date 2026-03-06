@@ -13,28 +13,56 @@ interface PlaylistSection {
   tracks: TrackInfo[];
 }
 
+interface DigStats {
+  digNumber: number;
+  artistsDiscovered: number;
+  streak: number;
+}
+
 interface SendDigRequest {
   email: string;
   displayName: string;
   playlists: PlaylistSection[];
+  stats?: DigStats;
 }
 
-const sectionInfo: Record<string, { bg: string; accent: string; tagline: string }> = {
-  ROOTS:       { bg: '#3A2E1A', accent: '#D4A853', tagline: 'The artists who shaped your favorites' },
-  EDGES:       { bg: '#1E2E1A', accent: '#7A9B5A', tagline: 'What fans of your music also love' },
-  CROWD:       { bg: '#3A2218', accent: '#E8622B', tagline: 'New sounds from your emerging genres' },
-  BLINDSPOT:   { bg: '#1A2A30', accent: '#5A9B9B', tagline: "Acclaimed music you haven't found yet" },
-  'DEEP WORK': { bg: '#26252A', accent: '#8A8494', tagline: 'Instrumental focus fuel' },
-  WILDCARD:    { bg: '#30192A', accent: '#C45A8A', tagline: 'A genre you\'ve never explored' },
+const sectionInfo: Record<string, { bg: string; accent: string }> = {
+  'warm signal':  { bg: '#3A2E1A', accent: '#D4A853' },
+  'soft drift':   { bg: '#1E2E1A', accent: '#7A9B5A' },
+  'night drive':  { bg: '#3A2218', accent: '#E8622B' },
+  'other side':   { bg: '#1A2A30', accent: '#5A9B9B' },
+  'static':       { bg: '#30192A', accent: '#C45A8A' },
 };
 
-function buildEmailHtml(name: string, playlists: PlaylistSection[]): string {
+function buildEmailHtml(name: string, playlists: PlaylistSection[], stats?: DigStats): string {
   const totalTracks = playlists.reduce((sum, p) => sum + p.trackCount, 0);
   const totalPlaylists = playlists.length;
 
-  // Build compact preview sections — only 3 tracks per playlist
+  const hookLine = stats
+    ? `<p style="font-family:Courier,monospace;font-size:12px;color:#5A5347;letter-spacing:0.06em;text-transform:uppercase;margin:0 0 20px;">Dig #${stats.digNumber}. ${stats.streak} day streak.</p>`
+    : '';
+
+  const statsBlock = stats
+    ? `<table cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:0 0 28px;border:1px solid #2E2924;border-radius:10px;overflow:hidden;background:#1E1B17;">
+        <tr>
+          <td style="padding:20px 24px;text-align:center;">
+            <div style="font-family:Georgia,serif;font-size:36px;color:#F0DFC8;line-height:1;">${stats.artistsDiscovered}</div>
+            <div style="font-family:Courier,monospace;font-size:10px;color:#5A5347;letter-spacing:0.1em;text-transform:uppercase;margin-top:4px;">artists discovered</div>
+          </td>
+          <td style="padding:20px 24px;text-align:center;border-left:1px solid #2E2924;">
+            <div style="font-family:Courier,monospace;font-size:20px;font-weight:700;color:${stats.streak > 1 ? '#E8622B' : '#F0DFC8'};line-height:1;">${stats.streak}</div>
+            <div style="font-family:Courier,monospace;font-size:10px;color:#5A5347;letter-spacing:0.1em;text-transform:uppercase;margin-top:4px;">day streak</div>
+          </td>
+          <td style="padding:20px 24px;text-align:center;border-left:1px solid #2E2924;">
+            <div style="font-family:Courier,monospace;font-size:20px;font-weight:700;color:#F0DFC8;line-height:1;">#${stats.digNumber}</div>
+            <div style="font-family:Courier,monospace;font-size:10px;color:#5A5347;letter-spacing:0.1em;text-transform:uppercase;margin-top:4px;">dig</div>
+          </td>
+        </tr>
+      </table>`
+    : '';
+
   const sections = playlists.map((pl) => {
-    const colors = sectionInfo[pl.label] ?? { bg: '#2F2A22', accent: '#8A7E6E', tagline: '' };
+    const colors = sectionInfo[pl.label] ?? { bg: '#2F2A22', accent: '#8A7E6E' };
     const preview = pl.tracks.slice(0, 3);
 
     const trackPreviews = preview.map((t) => {
@@ -47,18 +75,16 @@ function buildEmailHtml(name: string, playlists: PlaylistSection[]): string {
     }).join('<br/>');
 
     return `
-      <div style="border:2px solid #3D362C;border-radius:12px;overflow:hidden;margin-bottom:16px;background:#252119;">
+      <div style="border:1px solid #2E2924;border-radius:10px;overflow:hidden;margin-bottom:14px;background:#211E18;">
         <table cellpadding="0" cellspacing="0" border="0" width="100%">
           <tr>
-            <td style="background:${colors.bg};padding:12px 16px;">
+            <td style="background:${colors.bg};padding:10px 16px;">
               <div style="font-family:Courier,monospace;font-size:12px;font-weight:700;letter-spacing:0.1em;color:${colors.accent};text-transform:uppercase;">${pl.label}</div>
-              <div style="font-family:Arial,sans-serif;font-size:12px;color:${colors.accent};opacity:0.7;margin-top:2px;">${colors.tagline}</div>
             </td>
           </tr>
           <tr>
             <td style="padding:12px 16px;">
               ${trackPreviews}
-              <div style="font-family:Courier,monospace;font-size:11px;color:#5A5347;margin-top:8px;">+ ${Math.max(0, pl.trackCount - 3)} more tracks</div>
             </td>
           </tr>
           ${pl.spotifyUrl ? `<tr>
@@ -70,48 +96,22 @@ function buildEmailHtml(name: string, playlists: PlaylistSection[]): string {
       </div>`;
   }).join('');
 
-  // Instagram-shareable card — a visually striking summary designed to be screenshotted
-  const playlistNames = playlists.map(p => {
-    const colors = sectionInfo[p.label] ?? { accent: '#8A7E6E' };
-    return `<span style="color:${colors.accent};">${p.label}</span>`;
-  }).join(' &middot; ');
-
-  const shareCard = `
-    <div style="background:linear-gradient(135deg, #1A1714 0%, #252119 50%, #1A1714 100%);border:2px solid #3D362C;border-radius:16px;padding:32px 24px;margin:24px 0;text-align:center;">
-      <div style="font-family:Courier,monospace;font-size:11px;color:#5A5347;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:16px;">YOUR MUSICAL DNA</div>
-      <div style="font-family:Georgia,serif;font-size:32px;color:#E8622B;font-weight:700;letter-spacing:0.04em;margin-bottom:4px;">VYBA</div>
-      <div style="font-family:Courier,monospace;font-size:11px;color:#D4A853;letter-spacing:0.08em;margin-bottom:20px;">BUILT FOR ${name.toUpperCase()}</div>
-      <div style="width:60px;height:2px;background:#E8622B;margin:0 auto 20px;"></div>
-      <div style="font-family:Georgia,serif;font-size:20px;color:#F0DFC8;line-height:1.4;margin-bottom:16px;">${totalPlaylists} playlists. ${totalTracks} tracks.<br/>Zero songs you've heard before.</div>
-      <div style="font-family:Courier,monospace;font-size:10px;color:#5A5347;letter-spacing:0.06em;margin-bottom:12px;">${playlistNames}</div>
-      <div style="width:60px;height:2px;background:#3D362C;margin:0 auto 16px;"></div>
-      <div style="font-family:Courier,monospace;font-size:10px;color:#5A5347;letter-spacing:0.1em;text-transform:uppercase;">Screenshot this &middot; Share to your story</div>
-    </div>`;
-
   return `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
 <body style="margin:0;padding:0;background:#1A1714;">
-  <div style="max-width:560px;margin:0 auto;padding:32px 16px;font-family:Arial,sans-serif;">
-    <h1 style="font-family:Courier,monospace;font-size:24px;font-weight:700;letter-spacing:0.08em;color:#E8622B;margin:0;">VYBA</h1>
-    <p style="font-family:Courier,monospace;font-size:11px;color:#D4A853;letter-spacing:0.1em;text-transform:uppercase;margin:6px 0 0;">Your Daily Dig</p>
-    <hr style="border:none;border-top:2px solid #3D362C;margin:16px 0 24px;" />
+  <div style="max-width:560px;margin:0 auto;padding:40px 20px;font-family:Arial,sans-serif;">
+    <div style="font-family:Courier,monospace;font-size:22px;font-weight:700;letter-spacing:0.08em;color:#E8622B;margin:0 0 32px;">VYBA</div>
 
-    <h2 style="font-family:Georgia,serif;font-size:24px;font-weight:400;color:#F0DFC8;margin:0 0 8px;line-height:1.3;">
-      Hey ${name}. We analyzed your listening and found ${totalTracks} songs you've never heard.
-    </h2>
-    <p style="font-family:Courier,monospace;font-size:12px;color:#8A7E6E;letter-spacing:0.04em;margin:0 0 28px;">
-      ${totalPlaylists} playlists, each digging into a different side of your taste.
-    </p>
+    ${hookLine}
+    <p style="font-family:Georgia,serif;font-size:22px;font-weight:400;color:#F0DFC8;margin:0 0 6px;line-height:1.3;">Hey ${name}.</p>
+    <p style="font-family:Georgia,serif;font-size:16px;font-weight:400;color:#A89E8E;margin:0 0 28px;line-height:1.5;">We went through your listening and pulled ${totalTracks} songs you've never heard. ${totalPlaylists} playlists, all new artists.</p>
+
+    ${statsBlock}
 
     ${sections}
 
-    ${shareCard}
-
-    <hr style="border:none;border-top:1px solid #3D362C;margin:24px 0;" />
-    <p style="font-family:Courier,monospace;font-size:11px;color:#5A5347;text-align:center;letter-spacing:0.04em;">
-      vyba &middot; read only &middot; never posts anything
-    </p>
+    <p style="font-family:Courier,monospace;font-size:11px;color:#3D362C;text-align:center;letter-spacing:0.06em;margin:32px 0 0;">vyba</p>
   </div>
 </body>
 </html>`;
@@ -124,7 +124,7 @@ export async function POST(request: Request) {
   }
 
   const body: SendDigRequest = await request.json();
-  const html = buildEmailHtml(body.displayName || 'friend', body.playlists);
+  const html = buildEmailHtml(body.displayName || 'friend', body.playlists, body.stats);
 
   const res = await fetch('https://api.brevo.com/v3/smtp/email', {
     method: 'POST',
@@ -135,7 +135,7 @@ export async function POST(request: Request) {
     body: JSON.stringify({
       sender: { name: 'VYBA', email: 'sibollabokang@gmail.com' },
       to: [{ email: body.email }],
-      subject: `Your dig is ready — ${body.playlists.length} playlists of music you've never heard`,
+      subject: body.stats ? `dig #${body.stats.digNumber} is ready` : 'your dig is ready',
       htmlContent: html,
     }),
   });

@@ -25,8 +25,8 @@ export interface MusicService {
   getTopTracks(timeRange: 'short' | 'medium' | 'long', limit?: number): Promise<MusicTrack[]>;
   getTopArtists(timeRange: 'short' | 'medium' | 'long', limit?: number): Promise<MusicArtist[]>;
   getTopArtistsAllRanges(): Promise<{ shortTerm: MusicArtist[]; mediumTerm: MusicArtist[]; longTerm: MusicArtist[] }>;
-  searchTracks(query: string, limit?: number): Promise<MusicTrack[]>;
-  searchTracksByArtist(artistName: string, limit?: number): Promise<MusicTrack[]>;
+  searchTracks(query: string): Promise<MusicTrack[]>;
+  searchTracksByArtist(artistName: string): Promise<MusicTrack[]>;
   discoverByGenres(genres: string[], excludeIds: Set<string>, limit: number): Promise<MusicTrack[]>;
   createPlaylist(name: string, description: string, trackUris: string[]): Promise<string>;
 

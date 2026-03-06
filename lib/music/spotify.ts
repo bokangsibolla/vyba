@@ -53,11 +53,11 @@ export class SpotifyService implements MusicService {
     return data.items.map(toMusicArtist);
   }
 
-  async searchTracks(query: string, limit = 10): Promise<MusicTrack[]> {
+  async searchTracks(query: string): Promise<MusicTrack[]> {
     const q = encodeURIComponent(query);
-    const url = `/search?q=${q}&type=track&limit=${Math.min(limit, 10)}`;
-    console.log('[vyba] Search URL:', url);
-    const data = await this.fetch<{ tracks: { items: SpotifyRawTrack[] } }>(url);
+    const data = await this.fetch<{ tracks: { items: SpotifyRawTrack[] } }>(
+      `/search?q=${q}&type=track`
+    );
     return data.tracks.items.map(toMusicTrack);
   }
 
@@ -70,8 +70,8 @@ export class SpotifyService implements MusicService {
     return { shortTerm, mediumTerm, longTerm };
   }
 
-  async searchTracksByArtist(artistName: string, limit = 5): Promise<MusicTrack[]> {
-    return this.searchTracks(`artist:"${artistName}"`, limit);
+  async searchTracksByArtist(artistName: string): Promise<MusicTrack[]> {
+    return this.searchTracks(`artist:"${artistName}"`);
   }
 
   async discoverByGenres(genres: string[], excludeIds: Set<string>, limit = 30): Promise<MusicTrack[]> {

@@ -1,8 +1,8 @@
 .main {
   min-height: 100dvh;
-  padding: 24px;
-  padding-top: env(safe-area-inset-top, 24px);
-  padding-bottom: 64px;
+  padding: 16px;
+  padding-top: env(safe-area-inset-top, 16px);
+  padding-bottom: 40px;
   max-width: 600px;
   margin: 0 auto;
 }
@@ -11,7 +11,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 32px;
+  margin-bottom: 24px;
 }
 
 .logoutBtn {
@@ -31,59 +31,120 @@
   color: #F0DFC8;
 }
 
-.hero {
-  text-align: center;
-  margin-bottom: 40px;
+/* Signal Card */
+
+.signalCard {
+  background: #1E1B17;
+  border: 1px solid #2E2924;
+  border-radius: 16px;
+  padding: 28px 24px 24px;
+  margin-bottom: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
 }
 
-.heroTitle {
+.digNumber {
+  font-family: 'Space Mono', monospace;
+  font-size: 10px;
+  color: #3D362C;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  position: absolute;
+  top: 16px;
+  left: 24px;
+}
+
+.bigNumber {
   font-family: 'Instrument Serif', serif;
-  font-size: 40px;
+  font-size: 72px;
   font-weight: 400;
   color: #F0DFC8;
-  line-height: 1.1;
-  margin-bottom: 12px;
+  line-height: 1;
+  margin-top: 8px;
 }
 
-.heroSub {
-  font-family: 'Space Mono', monospace;
-  font-size: 12px;
-  color: #8A7E6E;
-  letter-spacing: 0.04em;
-  line-height: 1.6;
-}
-
-.heroExplainer {
-  font-family: 'Inter', sans-serif;
-  font-size: 13px;
-  color: #6B6158;
-  max-width: 340px;
-  margin: 8px auto 0;
-  line-height: 1.5;
-}
-
-.spamNotice {
+.bigLabel {
   font-family: 'Space Mono', monospace;
   font-size: 11px;
-  color: #E8622B;
-  letter-spacing: 0.04em;
-  margin-top: 12px;
-  padding: 10px 16px;
-  background: #3A2218;
-  border-radius: 8px;
-  border: 1px solid #4A3020;
+  color: #5A5347;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-top: 4px;
 }
 
-.headerLinks {
-  display: flex;
-  align-items: center;
-  gap: 4px;
+.tasteBreadth {
+  font-family: 'Space Mono', monospace;
+  font-size: 10px;
+  color: #5A5347;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-top: 2px;
 }
+
+.onFire {
+  font-size: 9px;
+  color: #E8622B;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  display: block;
+  margin-top: 4px;
+  font-weight: 400;
+}
+
+.statRow {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  margin-top: 28px;
+  padding-top: 20px;
+  border-top: 1px solid #2E2924;
+}
+
+.statItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+}
+
+.statNumber {
+  font-family: 'Space Mono', monospace;
+  font-size: 20px;
+  font-weight: 700;
+  color: #F0DFC8;
+  line-height: 1;
+}
+
+.streakActive {
+  color: #E8622B;
+}
+
+.statLabel {
+  font-family: 'Space Mono', monospace;
+  font-size: 10px;
+  color: #5A5347;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-top: 6px;
+}
+
+.tasteShift {
+  font-family: 'Space Mono', monospace;
+  font-size: 11px;
+  color: #5A5347;
+  letter-spacing: 0.03em;
+  margin-top: 16px;
+  text-align: center;
+}
+
+/* Playlists */
 
 .playlists {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 12px;
 }
 
 .playlistCard {
@@ -109,15 +170,6 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-}
-
-.playlistTagline {
-  font-family: 'Inter', sans-serif;
-  font-size: 12px;
-  font-weight: 400;
-  letter-spacing: 0;
-  text-transform: none;
-  opacity: 0.6;
 }
 
 .trackCount {
@@ -162,9 +214,11 @@
   padding: 8px 16px 12px;
 }
 
+/* Footer */
+
 .footer {
   text-align: center;
-  margin-top: 40px;
+  margin-top: 24px;
 }
 
 .footerText {
@@ -173,6 +227,8 @@
   color: #5A5347;
   letter-spacing: 0.04em;
 }
+
+/* Error UI */
 
 .errorContainer {
   display: flex;
@@ -239,91 +295,4 @@
 .logoutBtnAlt:hover {
   border-color: #8A7E6E;
   color: #F0DFC8;
-}
-
-/* Instagram-shareable card */
-.shareCard {
-  background: linear-gradient(135deg, #1A1714 0%, #252119 50%, #1A1714 100%);
-  border: 2px solid #3D362C;
-  border-radius: 16px;
-  padding: 40px 24px;
-  margin: 32px 0;
-  text-align: center;
-  aspect-ratio: 1 / 1;
-  max-width: 400px;
-  margin-left: auto;
-  margin-right: auto;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 0;
-}
-
-.shareCardLabel {
-  font-family: 'Space Mono', monospace;
-  font-size: 10px;
-  color: #5A5347;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  margin: 0 0 16px;
-}
-
-.shareCardLogo {
-  font-family: 'Space Mono', monospace;
-  font-size: 36px;
-  font-weight: 700;
-  color: #E8622B;
-  letter-spacing: 0.04em;
-  margin: 0 0 4px;
-}
-
-.shareCardName {
-  font-family: 'Space Mono', monospace;
-  font-size: 11px;
-  color: #D4A853;
-  letter-spacing: 0.08em;
-  margin: 0 0 20px;
-}
-
-.shareCardDivider {
-  width: 60px;
-  height: 2px;
-  background: #E8622B;
-  margin: 0 0 20px;
-}
-
-.shareCardStat {
-  font-family: 'Instrument Serif', Georgia, serif;
-  font-size: 20px;
-  color: #F0DFC8;
-  line-height: 1.4;
-  margin: 0 0 16px;
-}
-
-.shareCardOrbits {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 6px 12px;
-  font-family: 'Space Mono', monospace;
-  font-size: 10px;
-  letter-spacing: 0.06em;
-  margin: 0 0 16px;
-}
-
-.shareCardDividerFaint {
-  width: 60px;
-  height: 2px;
-  background: #3D362C;
-  margin: 0 0 16px;
-}
-
-.shareCardCta {
-  font-family: 'Space Mono', monospace;
-  font-size: 10px;
-  color: #5A5347;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  margin: 0;
 }
