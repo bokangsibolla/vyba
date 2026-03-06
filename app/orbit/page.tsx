@@ -289,6 +289,8 @@ export default function OrbitPage() {
     saveAll(readyOrbits, ms);
   }, [engineState.isLoading, engineState.orbits, phase]);
 
+  const animatedArtists = useCountUp(stats?.totalArtists ?? 0);
+
   if (error) {
     return (
       <main className={styles.main}>
@@ -327,7 +329,6 @@ export default function OrbitPage() {
   // Compute current dig's genre count from saved playlists
   const currentGenreCount = playlists.length;
   const currentTrackCount = playlists.reduce((sum, pl) => sum + pl.trackCount, 0);
-  const animatedArtists = useCountUp(stats?.totalArtists ?? 0);
   const tasteBreadth = stats ? getUniqueClusters(stats.topGenres) : 0;
   const tasteShift = stats ? getTasteShift(stats) : null;
 
