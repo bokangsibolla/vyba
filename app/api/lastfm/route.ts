@@ -31,3 +31,45 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Last.fm request failed' }, { status: 502 });
   }
 }
+
+export async function POST(req: NextRequest) {
+  if (!API_KEY) {
+    return NextResponse.json({ error: 'Last.fm API key not configured' }, { status: 500 });
+  }
+
+  const body = await req.json();
+  const artists: string[] = body.artists ?? [];
+  const method: string = body.method ?? 'artist.getSimilar';
+  const limit: string = String(body.limit ?? 30);
+
+  if (artists.length === 0) {
+    return NextResponse.json({ error: 'No artists provided' }, { status: 400 });
+  }
+
+  const results: Record<string, unknown> = {};
+
+  for (let i = 0; i < artists.length; i += 5) {
+    const batch = artists.slice(i, i + 5);
+    const responses = await Promise.allSettled(
+      batch.map(async (artist) => {
+        const url = new URL(LASTFM_BASE);
+        url.searchParams.set('method', method);
+        url.searchParams.set('artist', artist);
+        url.searchParams.set('limit', limit);
+        url.searchParams.set('api_key', API_KEY!);
+        url.searchParams.set('format', 'json');
+
+        const res = await fetch(url.toString());
+        return { artist, data: await res.json() };
+      })
+    );
+
+    for (const r of responses) {
+      if (r.status === 'fulfilled') {
+        results[r.value.artist] = r.value.data;
+      }
+    }
+  }
+
+  return NextResponse.json({ results });
+}

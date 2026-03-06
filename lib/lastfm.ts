@@ -1,58 +1,75 @@
 export interface LastfmSimilarArtist {
   name: string;
-  match: string; // similarity score 0-1 as string
+  match: string;
   url: string;
 }
 
 export interface LastfmTag {
   name: string;
-  count: number; // tag weight
+  count: number;
 }
 
-/**
- * Get similar artists from Last.fm via our server-side API route.
- */
-export async function getSimilarArtists(
-  artistName: string,
-  limit = 30
-): Promise<LastfmSimilarArtist[]> {
+export async function getSimilarArtistsBatch(
+  artistNames: string[],
+  limit = 50
+): Promise<Map<string, LastfmSimilarArtist[]>> {
+  const result = new Map<string, LastfmSimilarArtist[]>();
+  if (artistNames.length === 0) return result;
+
   try {
-    const params = new URLSearchParams({
-      artist: artistName,
-      method: 'artist.getSimilar',
-      limit: String(limit),
+    const res = await fetch('/api/lastfm', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ artists: artistNames, method: 'artist.getSimilar', limit }),
     });
-    const res = await fetch(`/api/lastfm?${params.toString()}`);
-    if (!res.ok) return [];
+    if (!res.ok) return result;
     const data = await res.json();
-    return data?.similarartists?.artist ?? [];
+    for (const [artist, payload] of Object.entries(data.results ?? {})) {
+      const similar = (payload as any)?.similarartists?.artist;
+      result.set(artist, Array.isArray(similar) ? similar : []);
+    }
   } catch {
-    return [];
+    // non-critical
   }
+  return result;
 }
 
-/**
- * Get top tags for an artist from Last.fm.
- * Tags represent genres, moods, and descriptors (e.g. "shoegaze", "melancholic", "90s").
- */
-export async function getArtistTags(
-  artistName: string,
-): Promise<LastfmTag[]> {
+export async function getArtistTagsBatch(
+  artistNames: string[],
+): Promise<Map<string, LastfmTag[]>> {
+  const result = new Map<string, LastfmTag[]>();
+  if (artistNames.length === 0) return result;
+
   try {
-    const params = new URLSearchParams({
-      artist: artistName,
-      method: 'artist.getTopTags',
-      limit: '10',
+    const res = await fetch('/api/lastfm', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ artists: artistNames, method: 'artist.getTopTags', limit: 10 }),
     });
-    const res = await fetch(`/api/lastfm?${params.toString()}`);
-    if (!res.ok) return [];
+    if (!res.ok) return result;
     const data = await res.json();
-    const tags = data?.toptags?.tag ?? [];
-    return tags.map((t: { name: string; count: number }) => ({
-      name: t.name.toLowerCase(),
-      count: Number(t.count) || 0,
-    }));
+    for (const [artist, payload] of Object.entries(data.results ?? {})) {
+      const tags = (payload as any)?.toptags?.tag;
+      if (Array.isArray(tags)) {
+        result.set(artist, tags.map((t: any) => ({
+          name: t.name.toLowerCase(),
+          count: Number(t.count) || 0,
+        })));
+      }
+    }
   } catch {
-    return [];
+    // non-critical
   }
+  return result;
+}
+
+// Single-artist wrappers (kept for compat)
+export async function getSimilarArtists(artistName: string, limit = 30): Promise<LastfmSimilarArtist[]> {
+  const map = await getSimilarArtistsBatch([artistName], limit);
+  return map.get(artistName) ?? [];
+}
+
+export async function getArtistTags(artistName: string): Promise<LastfmTag[]> {
+  const map = await getArtistTagsBatch([artistName]);
+  return map.get(artistName) ?? [];
 }

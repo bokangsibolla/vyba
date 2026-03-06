@@ -1,5 +1,5 @@
 import { MusicService, MusicTrack, MusicArtist } from '@/lib/music/types';
-import { getSimilarArtists, getArtistTags, LastfmTag } from '@/lib/lastfm';
+import { getSimilarArtistsBatch, getArtistTagsBatch, LastfmTag } from '@/lib/lastfm';
 import { sectionColors, sectionMeta } from '@/lib/tokens';
 import {
   DiscoveryOrbit,
@@ -243,38 +243,32 @@ export async function runDiscoveryEngine(
 
   const seedArtists = topArtistNames.slice(0, 25);
 
-  // Accumulate: artist name → { similarities from each seed }
+  // Batch all Last.fm requests into one server call
   const rawDiscoveries = new Map<string, { sims: number[]; seeds: string[] }>();
   let lastfmSuccesses = 0;
 
-  for (let i = 0; i < seedArtists.length; i += 4) {
-    const batch = seedArtists.slice(i, i + 4);
-    const results = await Promise.all(
-      batch.map(name => getSimilarArtists(name, 50))
-    );
+  const batchResults = await getSimilarArtistsBatch(seedArtists, 50);
 
-    for (let j = 0; j < batch.length; j++) {
-      const seedName = batch[j];
-      const similar = results[j];
-      if (similar.length > 0) {
-        lastfmSuccesses++;
-        for (const s of similar) {
-          const lower = s.name.toLowerCase();
-          if (knownNames.has(lower)) continue;
-          const sim = parseFloat(s.match) || 0;
-          const existing = rawDiscoveries.get(lower);
-          if (existing) {
-            existing.sims.push(sim);
-            existing.seeds.push(seedName);
-          } else {
-            rawDiscoveries.set(lower, { sims: [sim], seeds: [seedName] });
-          }
+  for (const seedName of seedArtists) {
+    const similar = batchResults.get(seedName) ?? [];
+    if (similar.length > 0) {
+      lastfmSuccesses++;
+      for (const s of similar) {
+        const lower = s.name.toLowerCase();
+        if (knownNames.has(lower)) continue;
+        const sim = parseFloat(s.match) || 0;
+        const existing = rawDiscoveries.get(lower);
+        if (existing) {
+          existing.sims.push(sim);
+          existing.seeds.push(seedName);
+        } else {
+          rawDiscoveries.set(lower, { sims: [sim], seeds: [seedName] });
         }
       }
     }
-
-    setStep(1, 'loading', `${rawDiscoveries.size} new artists`);
   }
+
+  setStep(1, 'loading', `${rawDiscoveries.size} new artists`);
 
   diag.push(`Last.fm: ${lastfmSuccesses} ok, ${rawDiscoveries.size} raw discoveries`);
 
@@ -317,18 +311,12 @@ export async function runDiscoveryEngine(
   // Only fetch tags for the top ~80 artists (enough for 5 playlists of 15)
   const toTag = scoredArtists.slice(0, 80);
 
-  for (let i = 0; i < toTag.length; i += 5) {
-    const batch = toTag.slice(i, i + 5);
-    const tagResults = await Promise.all(
-      batch.map(a => getArtistTags(a.name))
-    );
-    for (let j = 0; j < batch.length; j++) {
-      batch[j].tags = tagResults[j]
-        .filter(t => t.count > 20) // only significant tags
-        .map(t => t.name);
-    }
-    setStep(2, 'loading', `${Math.min(i + 5, toTag.length)} of ${toTag.length} tagged`);
+  const tagMap = await getArtistTagsBatch(toTag.map(a => a.name));
+  for (const artist of toTag) {
+    const tags = tagMap.get(artist.name) ?? [];
+    artist.tags = tags.filter(t => t.count > 20).map(t => t.name);
   }
+  setStep(2, 'loading', `${toTag.length} tagged`);
 
   // Cluster artists by genre/mood tags
   const clusters = clusterByTags(toTag, 8);
@@ -398,7 +386,7 @@ export async function runDiscoveryEngine(
 
       const batch = artistsToSearch.slice(i, i + 3);
       const results = await Promise.allSettled(
-        batch.map(a => musicService.searchTracks(`artist:"${a.name}"`))
+        batch.map(a => musicService.searchTracks(a.name))
       );
 
       for (let j = 0; j < batch.length; j++) {
@@ -409,19 +397,14 @@ export async function runDiscoveryEngine(
         const candidates = result.value.filter(t =>
           !globalSeenTrackIds.has(t.id) &&
           !knownTrackIds.has(t.id) &&
-          !knownNames.has(t.artist.toLowerCase()) &&
           !globalSeenArtists.has(t.artist.toLowerCase())
         );
         if (candidates.length === 0) continue;
 
-        // Prefer deep cuts: filter out mainstream tracks (popularity > 55)
-        // and pick randomly from the remaining pool
-        const deepCuts = candidates.filter(t => (t.popularity ?? 100) <= 55);
-        const mediumCuts = candidates.filter(t => (t.popularity ?? 100) <= 75);
-        const pool = deepCuts.length >= 3 ? deepCuts
-          : mediumCuts.length >= 2 ? mediumCuts
-          : candidates.slice(1); // last resort: skip only the top result
-        const pick = pool.length > 0 ? pickRandom(pool)! : candidates[candidates.length - 1];
+        // Prefer non-mainstream tracks
+        const deepCuts = candidates.filter(t => (t.popularity ?? 100) <= 65);
+        const pool = deepCuts.length >= 2 ? deepCuts : candidates;
+        const pick = pickRandom(pool) ?? candidates[0];
 
         globalSeenTrackIds.add(pick.id);
         globalSeenArtists.add(pick.artist.toLowerCase());
@@ -429,7 +412,7 @@ export async function runDiscoveryEngine(
       }
     }
 
-    if (orbitTracks.length >= 5) {
+    if (orbitTracks.length >= 3) {
       orbits.push(makeOrbit(orbitId, shuffle(orbitTracks)));
     }
 
